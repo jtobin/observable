@@ -117,9 +117,10 @@ sample e = withSystemRandom . asGenIO $ samp e where
     Returning a -> return a
 
 -- | A posterior or 'backwards-mode' interpreter for our language.  Returns
---   values proportional to the posterior probabilities for each parameter.
-posterior :: Map String Lit -> Program t -> Map String Double
-posterior ps =
+--   values proportional to the log-posterior probabilities associated with
+--   each parameter and observation.
+logPosterior :: Map String Lit -> Program t -> Map String Double
+logPosterior ps =
       runIdentity
     . flip runReaderT ps
     . flip execStateT mempty
@@ -135,7 +136,7 @@ posterior ps =
                   LitInt j    -> j
                   LitDouble j -> truncate j
                   _ -> error $ "type error, parameter '" <> name <> "'"
-                score = probability (Statistics.binomial n p) cx
+                score = log $ probability (Statistics.binomial n p) cx
             modify $ Map.insert name score
             resolve (next (LitInt cx))
 
@@ -146,7 +147,7 @@ posterior ps =
                   LitInt j    -> j
                   LitDouble j -> truncate j
                   _ -> error $ "type error, parameter '" <> name <> "'"
-                score = probability (Statistics.binomial (truncate n) p) cx
+                score = log $ probability (Statistics.binomial (truncate n) p) cx
             modify $ Map.insert name score
             resolve (next (LitInt cx))
 
@@ -160,7 +161,7 @@ posterior ps =
                   LitDouble j -> j
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
-                score = density (Statistics.normalDistr m s) cx
+                score = log $ density (Statistics.normalDistr m s) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -172,7 +173,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, fromIntegral s)
-                score = density (Statistics.normalDistr em es) cx
+                score = log $ density (Statistics.normalDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -184,7 +185,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (m, fromIntegral s)
-                score = density (Statistics.normalDistr em es) cx
+                score = log $ density (Statistics.normalDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -196,7 +197,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, s)
-                score = density (Statistics.normalDistr em es) cx
+                score = log $ density (Statistics.normalDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -210,7 +211,7 @@ posterior ps =
                   LitDouble j -> j
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
-                score = density (Statistics.gammaDistr m s) cx
+                score = log $ density (Statistics.gammaDistr m s) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -222,7 +223,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, fromIntegral s)
-                score = density (Statistics.gammaDistr em es) cx
+                score = log $ density (Statistics.gammaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -234,7 +235,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (m, fromIntegral s)
-                score = density (Statistics.gammaDistr em es) cx
+                score = log $ density (Statistics.gammaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -246,7 +247,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, s)
-                score = density (Statistics.gammaDistr em es) cx
+                score = log $ density (Statistics.gammaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -260,7 +261,7 @@ posterior ps =
                   LitDouble j -> j
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
-                score = density (Statistics.betaDistr m s) cx
+                score = log $ density (Statistics.betaDistr m s) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -272,7 +273,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, fromIntegral s)
-                score = density (Statistics.betaDistr em es) cx
+                score = log $ density (Statistics.betaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -284,7 +285,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (m, fromIntegral s)
-                score = density (Statistics.betaDistr em es) cx
+                score = log $ density (Statistics.betaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
@@ -296,7 +297,7 @@ posterior ps =
                   LitInt j    -> fromIntegral j
                   _ -> error $ "type error, parameter '" <> name <> "'"
                 (em, es)      = (fromIntegral m, s)
-                score = density (Statistics.betaDistr em es) cx
+                score = log $ density (Statistics.betaDistr em es) cx
             modify $ Map.insert name score
             resolve (next (LitDouble cx))
 
