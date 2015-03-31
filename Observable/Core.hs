@@ -6,6 +6,8 @@ module Observable.Core where
 
 import Control.Applicative
 import Control.Monad
+import Data.Map (Map)
+import Data.Monoid
 
 -- | The free monad type.
 data Free f a =
@@ -49,6 +51,8 @@ observe name dist = liftF (Observe name dist id)
 returning :: a -> Free (Observable a) a
 returning = liftF . Returning
 
+type Program a = Free (Observable Lit) a
+
 -- | Literal values for our simple language.
 data Lit =
     LitInt Int
@@ -57,6 +61,8 @@ data Lit =
   | LitPair (Lit, Lit)
   | LitList [Lit]
   | LitString String
+  | LitEnv (Map String Lit)
+  | Nil
   deriving Eq
 
 instance Show Lit where
@@ -66,6 +72,8 @@ instance Show Lit where
   show (LitPair (i, j)) = show (i, j)
   show (LitList xs)     = show xs
   show (LitString s)    = s
+  show (LitEnv m)       = show m
+  show Nil              = "Nil"
 
 instance Num Lit where
   e0 + e1 = case (e0, e1) of
@@ -73,31 +81,31 @@ instance Num Lit where
     (LitDouble i, LitDouble j) -> LitDouble (i + j)
     (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i + j)
     (LitDouble i, LitInt j)    -> LitDouble (i + fromIntegral j)
-    _ -> error "type error"
+    _ -> error $ "type error, " <> show e0 <> " + " <> show e1
 
   e0 - e1 = case (e0, e1) of
     (LitInt i, LitInt j)       -> LitInt (i - j)
     (LitDouble i, LitDouble j) -> LitDouble (i - j)
     (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i - j)
     (LitDouble i, LitInt j)    -> LitDouble (i - fromIntegral j)
-    _ -> error "type error"
+    _ -> error $ "type error, " <> show e0 <> " - " <> show e1
 
   e0 * e1 = case (e0, e1) of
     (LitInt i, LitInt j)       -> LitInt (i * j)
     (LitDouble i, LitDouble j) -> LitDouble (i * j)
     (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i * j)
     (LitDouble i, LitInt j)    -> LitDouble (i * fromIntegral j)
-    _ -> error "type error"
+    _ -> error $ "type error, " <> show e0 <> " * " <> show e1
 
   abs e = case e of
     LitInt j    -> LitInt (abs j)
     LitDouble j -> LitDouble (abs j)
-    LitBool _   -> error "type error"
+    LitBool _   -> error $ "type error, " <> show e
 
   signum e = case e of
     LitInt j    -> LitInt (signum j)
     LitDouble j -> LitDouble (signum j)
-    LitBool _   -> error "type error"
+    LitBool _   -> error $ "type error, " <> show e
 
   fromInteger = LitDouble . fromInteger
 
@@ -107,12 +115,12 @@ instance Fractional Lit where
     (LitDouble i, LitDouble j) -> LitDouble (i / j)
     (LitInt i, LitDouble j) -> LitDouble (fromIntegral i / j)
     (LitDouble i, LitInt j) -> LitDouble (i / fromIntegral j)
-    _ -> error "type error"
+    _ -> error $ "type error, " <> show e0 <> " / " <> show e1
 
   recip e = case e of
     LitInt i    -> LitDouble (recip (fromIntegral i))
     LitDouble i -> LitDouble (recip i)
-    _ -> error "type error"
+    _ -> error $ "type error, " <> show e
 
   fromRational = LitDouble . fromRational
 
