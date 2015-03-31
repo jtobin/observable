@@ -51,6 +51,7 @@ observe name dist = liftF (Observe name dist id)
 returning :: a -> Free (Observable a) a
 returning = liftF . Returning
 
+-- | An alias for programs written in our language.
 type Program a = Free (Observable Lit) a
 
 -- | Literal values for our simple language.

@@ -21,19 +21,6 @@ import qualified Statistics.Distribution.Binomial as Statistics
 import qualified Statistics.Distribution.Gamma as Statistics
 import qualified Statistics.Distribution.Normal as Statistics
 
--- | A simple beta-binomial model for testing.
-betaBinomial :: Lit -> Lit -> Lit -> Program Lit
-betaBinomial n a b = do
-  p <- observe "p" (Beta a b)
-  x <- observe "x" (Binomial n p)
-  returning x
-
-test :: Program Lit
-test = do
-  p <- observe "p" (Beta 1 8)
-  x <- observe "x" (Binomial 10 p)
-  returning x
-
 -- | A pretty-printing interpreter for visualizing abstract syntax.
 pretty :: Program t -> String
 pretty e = go e 0 where
@@ -136,183 +123,184 @@ posterior ps =
       runIdentity
     . flip runReaderT ps
     . flip execStateT mempty
-    . resolve where
-  resolve (Free e) = case e of
-    Observe name dist next -> case dist of
-      Binomial en pe -> case (en, pe) of
-        (LitInt n, LitDouble p) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitInt j    -> j
-                LitDouble j -> truncate j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = probability (Statistics.binomial n p) cx
-          modify $ Map.insert name score
-          resolve (next (LitInt cx))
+    . resolve
+  where
+    resolve (Free e) = case e of
+      Observe name dist next -> case dist of
+        Binomial en pe -> case (en, pe) of
+          (LitInt n, LitDouble p) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitInt j    -> j
+                  LitDouble j -> truncate j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                score = probability (Statistics.binomial n p) cx
+            modify $ Map.insert name score
+            resolve (next (LitInt cx))
 
-        (LitDouble n, LitDouble p) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitInt j    -> j
-                LitDouble j -> truncate j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = probability (Statistics.binomial (truncate n) p) cx
-          modify $ Map.insert name score
-          resolve (next (LitInt cx))
+          (LitDouble n, LitDouble p) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitInt j    -> j
+                  LitDouble j -> truncate j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                score = probability (Statistics.binomial (truncate n) p) cx
+            modify $ Map.insert name score
+            resolve (next (LitInt cx))
 
-        _ -> error $ "type error (posterior), " <> show (en, pe)
+          _ -> error $ "type error (posterior), " <> show (en, pe)
 
-      Gaussian me sd -> case (me, sd) of
-        (LitDouble m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = density (Statistics.normalDistr m s) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+        Gaussian me sd -> case (me, sd) of
+          (LitDouble m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                score = density (Statistics.normalDistr m s) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, fromIntegral s)
-              score = density (Statistics.normalDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, fromIntegral s)
+                score = density (Statistics.normalDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitDouble m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (m, fromIntegral s)
-              score = density (Statistics.normalDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitDouble m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (m, fromIntegral s)
+                score = density (Statistics.normalDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, s)
-              score = density (Statistics.normalDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, s)
+                score = density (Statistics.normalDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        _ -> error $ "type error (posterior), " <> show (me, sd)
+          _ -> error $ "type error (posterior), " <> show (me, sd)
 
-      Gamma me sd -> case (me, sd) of
-        (LitDouble m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = density (Statistics.gammaDistr m s) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+        Gamma me sd -> case (me, sd) of
+          (LitDouble m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                score = density (Statistics.gammaDistr m s) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, fromIntegral s)
-              score = density (Statistics.gammaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, fromIntegral s)
+                score = density (Statistics.gammaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitDouble m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (m, fromIntegral s)
-              score = density (Statistics.gammaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitDouble m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (m, fromIntegral s)
+                score = density (Statistics.gammaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, s)
-              score = density (Statistics.gammaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, s)
+                score = density (Statistics.gammaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        _ -> error $ "type error (posterior), " <> show (me, sd)
+          _ -> error $ "type error (posterior), " <> show (me, sd)
 
-      Beta me sd -> case (me, sd) of
-        (LitDouble m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = density (Statistics.betaDistr m s) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+        Beta me sd -> case (me, sd) of
+          (LitDouble m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                score = density (Statistics.betaDistr m s) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, fromIntegral s)
-              score = density (Statistics.betaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, fromIntegral s)
+                score = density (Statistics.betaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitDouble m, LitInt s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (m, fromIntegral s)
-              score = density (Statistics.betaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitDouble m, LitInt s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (m, fromIntegral s)
+                score = density (Statistics.betaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        (LitInt m, LitDouble s) -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              (em, es)      = (fromIntegral m, s)
-              score = density (Statistics.betaDistr em es) cx
-          modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          (LitInt m, LitDouble s) -> do
+            store <- lift ask
+            let val = fromJust $ Map.lookup name store
+                cx  = case val of
+                  LitDouble j -> j
+                  LitInt j    -> fromIntegral j
+                  _ -> error $ "type error, parameter '" <> name <> "'"
+                (em, es)      = (fromIntegral m, s)
+                score = density (Statistics.betaDistr em es) cx
+            modify $ Map.insert name score
+            resolve (next (LitDouble cx))
 
-        _ -> error $ "type error (posterior), " <> show (me, sd)
+          _ -> error $ "type error (posterior), " <> show (me, sd)
 
-    Returning a -> return a
+      Returning a -> return a
 
