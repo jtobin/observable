@@ -1,0 +1,25 @@
+name:                observable
+version:             0.1.0.0
+synopsis:            A toy embedded language for probabilistic programming.
+description:         A toy embedded language for probabilistic programming.
+homepage:            http://github.com/jtobin/observable
+license:             MIT
+license-file:        LICENSE
+author:              Jared Tobin
+maintainer:          jared@jtobin.ca
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:
+      Observable.Core
+    , Observable.Interpreter
+  default-language:    Haskell2010
+  build-depends:
+      base >=4.7 && <4.8
+    , containers
+    , mwc-random
+    , primitive
+    , statistics
+    , transformers
+
