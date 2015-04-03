@@ -1,9 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Observable.Core where
 

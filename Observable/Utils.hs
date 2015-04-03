@@ -13,17 +13,6 @@ import Observable.Core
 import System.Random.MWC
 import System.Random.MWC.Distributions
 
--- | A sampling function for the binomial distribution.
-binomial
-  :: (Variate a, PrimMonad m, Fractional a, Ord a)
-  => Int
-  -> a
-  -> Gen (PrimState m)
-  -> m Int
-binomial n p g = do
-  vals <- replicateM n (uniform g)
-  return . length $ filter (< p) vals
-
 -- | A sampling function for the multinomial distribution.
 multinomial
   :: (Variate a, PrimMonad m, Ord a, Num a)
