@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Observable.Core where
 
@@ -9,140 +12,73 @@ import Control.Monad
 import Data.Map (Map)
 import Data.Monoid
 
--- | The free monad type.
-data Free f a =
-    Free (f (Free f a))
-  | Pure a
+type Environment a = Map String a
+
+data Free :: (* -> *) -> * -> * where
+  Pure :: a -> Free f a
+  Free :: f (Free f a) -> Free f a
   deriving Functor
 
--- | Alias for the Free data constructor.
-free :: f (Free f a) -> Free f a
-free = Free
-
--- | Lift an action into a free monad.
-liftF :: Functor f => f a -> Free f a
-liftF action = Free (fmap Pure action)
-
 instance Functor f => Applicative (Free f) where
-  pure  = Pure
+  pure  = return
   (<*>) = ap
 
 instance Functor f => Monad (Free f) where
-  return         = Pure
-  Free a >>= f   = free (fmap (>>= f) a)
-  Pure a >>= f = f a
+  return = Pure
+  Free c >>= f = Free (fmap (>>= f) c)
+  Pure x >>= f = f x
 
 deriving instance (Show (f (Free f a)), Show a) => Show (Free f a)
 
--- | Terms for our simple probabilistic programming language.
---
---   'Observe' binds the (named) result of a distribution to a term, and
---   'Returning' passes back a value as a result.
-data Observable a e =
-    Observe String Distribution (a -> e)
-  | Returning a
-  deriving Functor
+liftF :: Functor f => f a -> Free f a
+liftF action = Free (fmap Pure action)
 
--- | The 'Observe' term lifted into the free monad.
-observe :: String -> Distribution -> Free (Observable a) a
+data ObservableF :: * -> * where
+  Observe :: String -> Distribution a -> (a -> r) -> ObservableF r
+
+instance Functor ObservableF where
+  fmap f (Observe s d k) = Observe s d (f . k)
+
+type Observable = Free ObservableF
+
+observe :: String -> Distribution a -> Observable a
 observe name dist = liftF (Observe name dist id)
 
--- | The 'Returning' term lifted into the free monad.
-returning :: a -> Free (Observable a) a
-returning = liftF . Returning
+data Distribution :: * -> * where
+  Beta     :: Double -> Double -> Distribution Double
+  Binomial :: Int -> Double -> Distribution Int
+  Standard :: Distribution Double
+  Normal   :: Double -> Double -> Distribution Double
+  Gamma    :: Double -> Double -> Distribution Double
+  IsoGauss :: [Double] -> Double -> Distribution [Double]
 
--- | An alias for programs written in our language.
-type Program a = Free (Observable Lit) a
+instance Show a => Show (Distribution a) where
+  show (Beta a b)     = "Beta " <> show a <> " " <> show b
+  show (Binomial a b) = "Binomial " <> show a <> " " <> show b
+  show Standard       = "Standard"
+  show (Normal a b)   = "Normal " <> show a <> show b
+  show (Gamma a b)    = "Gamma " <> show a <> " " <> show b
+  show (IsoGauss a b) = "IsoGauss " <> show a <> " " <> show b
 
--- | Literal values for our simple language.
+-- | Wrapped literal values required for passing information to the
+--   logPosterior interpreter.
 data Lit =
     LitInt Int
-  | LitBool Bool
   | LitDouble Double
-  | LitPair (Lit, Lit)
-  | LitList [Lit]
-  | LitString String
-  | LitEnv (Map String Lit)
-  | Nil
+  | LitVec [Lit]
   deriving Eq
 
 instance Show Lit where
-  show (LitInt j)       = show j
-  show (LitBool j)      = show j
-  show (LitDouble j)    = show j
-  show (LitPair (i, j)) = show (i, j)
-  show (LitList xs)     = show xs
-  show (LitString s)    = s
-  show (LitEnv m)       = show m
-  show Nil              = "Nil"
-
-instance Num Lit where
-  e0 + e1 = case (e0, e1) of
-    (LitInt i, LitInt j)       -> LitInt (i + j)
-    (LitDouble i, LitDouble j) -> LitDouble (i + j)
-    (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i + j)
-    (LitDouble i, LitInt j)    -> LitDouble (i + fromIntegral j)
-    _ -> error $ "type error, " <> show e0 <> " + " <> show e1
-
-  e0 - e1 = case (e0, e1) of
-    (LitInt i, LitInt j)       -> LitInt (i - j)
-    (LitDouble i, LitDouble j) -> LitDouble (i - j)
-    (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i - j)
-    (LitDouble i, LitInt j)    -> LitDouble (i - fromIntegral j)
-    _ -> error $ "type error, " <> show e0 <> " - " <> show e1
-
-  e0 * e1 = case (e0, e1) of
-    (LitInt i, LitInt j)       -> LitInt (i * j)
-    (LitDouble i, LitDouble j) -> LitDouble (i * j)
-    (LitInt i, LitDouble j)    -> LitDouble (fromIntegral i * j)
-    (LitDouble i, LitInt j)    -> LitDouble (i * fromIntegral j)
-    _ -> error $ "type error, " <> show e0 <> " * " <> show e1
-
-  abs e = case e of
-    LitInt j    -> LitInt (abs j)
-    LitDouble j -> LitDouble (abs j)
-    LitBool _   -> error $ "type error, " <> show e
-
-  signum e = case e of
-    LitInt j    -> LitInt (signum j)
-    LitDouble j -> LitDouble (signum j)
-    LitBool _   -> error $ "type error, " <> show e
-
-  fromInteger = LitDouble . fromInteger
-
-instance Fractional Lit where
-  e0 / e1 = case (e0, e1) of
-    (LitInt i, LitInt j) -> LitDouble (fromIntegral i / fromIntegral j)
-    (LitDouble i, LitDouble j) -> LitDouble (i / j)
-    (LitInt i, LitDouble j) -> LitDouble (fromIntegral i / j)
-    (LitDouble i, LitInt j) -> LitDouble (i / fromIntegral j)
-    _ -> error $ "type error, " <> show e0 <> " / " <> show e1
-
-  recip e = case e of
-    LitInt i    -> LitDouble (recip (fromIntegral i))
-    LitDouble i -> LitDouble (recip i)
-    _ -> error $ "type error, " <> show e
-
-  fromRational = LitDouble . fromRational
-
-list :: [Lit] -> Lit
-list = LitList
-
-double :: Double -> Lit
-double = LitDouble
+  show (LitInt j)    = "Int " <> show j
+  show (LitDouble j) = "Double " <> show j
+  show (LitVec j)    = "Vector " <> show j
 
 int :: Int -> Lit
 int = LitInt
 
--- | An abstract probability distribution type.
-data Distribution =
-    Binomial Lit Lit
-  | StandardGaussian
-  | Gaussian Lit Lit
-  | IsoGaussian Lit Lit
-  | Gamma Lit Lit
-  | Beta Lit Lit
-  | SymmetricDirichlet Lit Lit
-  | Multinomial Lit Lit
-  deriving (Eq, Show)
+double :: Double -> Lit
+double = LitDouble
+
+vector :: [Lit] -> Lit
+vector = LitVec
 
