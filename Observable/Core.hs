@@ -54,7 +54,9 @@ data Distribution :: * -> * where
   Binomial    :: Int -> Double -> Distribution Int
   Standard    :: Distribution Double
   Normal      :: Double -> Double -> Distribution Double
+  Student     :: Double -> Double -> Distribution Double
   Gamma       :: Double -> Double -> Distribution Double
+  InvGamma    :: Double -> Double -> Distribution Double
   IsoGauss    :: [Double] -> Double -> Distribution [Double]
   IsoStandard :: Int -> Distribution [Double]
 
@@ -63,7 +65,9 @@ instance Show a => Show (Distribution a) where
   show (Binomial a b)    = "Binomial " <> show a <> " " <> show b
   show Standard          = "Standard"
   show (Normal a b)      = "Normal " <> show a <> show b
+  show (Student a b)     = "Student " <> show a <> show b
   show (Gamma a b)       = "Gamma " <> show a <> " " <> show b
+  show (InvGamma a b)    = "InvGamma " <> show a <> " " <> show b
   show (IsoGauss a b)    = "IsoGauss " <> show a <> " " <> show b
   show (IsoStandard _)   = "IsoStandard"
 

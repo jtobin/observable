@@ -49,12 +49,20 @@ simulate expr = sample (eval expr) where
         value <- gamma a b
         eval (next value)
 
+      InvGamma a b -> do
+        value <- inverseGamma a b
+        eval (next value)
+
       Standard -> do
         value <- standard
         eval (next value)
 
       Normal a b -> do
         value <- normal a b
+        eval (next value)
+
+      Student m k -> do
+        value <- t m 1 k
         eval (next value)
 
       IsoGauss mus s -> do
@@ -100,9 +108,21 @@ logPosterior ps =
           modify $ Map.insert name score
           resolve (next val)
 
+        InvGamma a b -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ invGamma a b val
+          modify $ Map.insert name score
+          resolve (next val)
+
         Normal a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density (Statistics.normalDistr a b) val
+          modify $ Map.insert name score
+          resolve (next val)
+
+        Student m k -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ tDensity m 1 k val
           modify $ Map.insert name score
           resolve (next val)
 
@@ -149,12 +169,20 @@ forwardMeasure = measure where
         value <- Measurable.gamma a b
         measure (next value)
 
+      InvGamma a b -> do
+        value <- fromDensityFunction (invGamma a b)
+        measure (next value)
+
       Standard -> do
         value <- Measurable.standard
         measure (next value)
 
       Normal a b -> do
         value <- Measurable.normal a b
+        measure (next value)
+
+      Student m k -> do
+        value <- fromDensityFunction (tDensity m 1 k)
         measure (next value)
 
       IsoGauss mus s -> do
