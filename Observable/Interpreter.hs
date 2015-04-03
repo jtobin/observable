@@ -1,17 +1,19 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE GADTs #-}
 
 module Observable.Interpreter where
 
-import Control.Monad
+import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Primitive
 import Data.Functor.Identity
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe
 import Data.Monoid
 import Data.Traversable
+import Measurable.Core
+import qualified Measurable.Measures as Measurable
 import Observable.Core
 import Observable.Utils
 import System.Random.MWC
@@ -22,418 +24,126 @@ import qualified Statistics.Distribution.Binomial as Statistics
 import qualified Statistics.Distribution.Gamma as Statistics
 import qualified Statistics.Distribution.Normal as Statistics
 
--- | A pretty-printing interpreter for visualizing abstract syntax.
-pretty :: Program t -> String
-pretty e = go e 0 where
-  go (Free (Observe name dist next)) j = "(Let " ++ name ++ " " ++ inner ++ ")"
-    where
-      inner = "(" ++ show dist ++ ") " ++ go (next (LitString name)) (succ j)
+-- | A forward-mode sampling interpreter.  Produces a sample from the joint
+--   distribution and returns it in IO.
+sample :: Observable a -> IO a
+sample expr = withSystemRandom . asGenIO $ samp expr where
+  samp
+    :: (Applicative m, PrimMonad m)
+    => Observable a -> Gen (PrimState m) -> m a
+  samp (Pure r) _   = return r
+  samp (Free e) gen = case e of
 
-  go (Free (Returning (LitString s))) _ = s
-
--- | A sampling or 'forward-mode' interpreter for our language.
-sample :: Program t -> IO Lit
-sample e = withSystemRandom . asGenIO $ samp e where
-  samp (Free e) g = case e of
     Observe _ dist next -> case dist of
+      Binomial n p -> do
+        value <- binomial n p gen
+        samp (next value) gen
 
-      Binomial en pe -> case (en, pe) of
+      Beta a b -> do
+        value <- beta a b gen
+        samp (next value) gen
 
-        (LitInt n, LitDouble p) -> do
-          val <- fmap LitInt (binomial n p g)
-          samp (next val) g
+      Gamma a b -> do
+        value <- beta a b gen
+        samp (next value) gen
 
-        (LitDouble n, LitDouble p) -> do
-          val <- fmap LitInt (binomial (truncate n) p g)
-          samp (next val) g
+      Standard -> do
+        value <- standard gen
+        samp (next value) gen
 
-        _ -> error "type error"
+      Normal a b -> do
+        value <- normal a b gen
+        samp (next value) gen
 
-      Multinomial en ps -> case (en, ps) of
+      IsoGauss mus s -> do
+        value <- traverse (\m -> normal m s gen) mus
+        samp (next value) gen
 
-        (LitInt n, LitList probs) -> do
-          let extract x = case x of
-                LitDouble j -> j
-                _ -> error "type error (verify)"
-
-              rawProbs = fmap extract probs
-
-          vs <- multinomial n rawProbs g
-          let val = list (fmap int vs)
-          samp (next val) g
-
-        (LitDouble n, LitList probs) -> do
-          let extract x = case x of
-                LitDouble j -> j
-                _ -> error "type error (verify)"
-
-              rawProbs = fmap extract probs
-
-          vs <- multinomial (truncate n) rawProbs g
-          let val = list (fmap int vs)
-          samp (next val) g
-
-        _ -> error "type error"
-
-      SymmetricDirichlet en a -> case (en, a) of
-
-        (LitInt n, LitDouble a) -> do
-          probs <- symmetricDirichlet n a g
-          let val = list (fmap double probs)
-          samp (next val) g
-
-        (LitDouble n, LitDouble a) -> do
-          probs <- symmetricDirichlet (truncate n) a g
-          let val = list (fmap double probs)
-          samp (next val) g
-
-        (LitInt n, LitInt a) -> do
-          probs <- symmetricDirichlet n (fromIntegral a) g
-          let val = list (fmap double probs)
-          samp (next val) g
-
-        (LitDouble n, LitInt a) -> do
-          probs <- symmetricDirichlet (truncate n) (fromIntegral a) g
-          let val = list (fmap double probs)
-          samp (next val) g
-
-        _ -> error "type error"
-
-      Gaussian me sd -> case (me, sd) of
-        (LitDouble m, LitDouble s) -> do
-          val <- fmap LitDouble (normal m s g)
-          samp (next val) g
-
-        (LitInt m, LitInt s) -> do
-          let (em, es) = (fromIntegral m, fromIntegral s)
-          val <- fmap LitDouble (normal em es g)
-          samp (next val) g
-
-        (LitInt m, LitDouble s) -> do
-          let (em, es) = (fromIntegral m, s)
-          val <- fmap LitDouble (normal em es g)
-          samp (next val) g
-
-        (LitDouble m, LitInt s) -> do
-          let (em, es) = (m, fromIntegral s)
-          val <- fmap LitDouble (normal em es g)
-          samp (next val) g
-
-        _ -> error "type error"
-
-      StandardGaussian -> do
-          val <- fmap LitDouble (standard g)
-          samp (next val) g
-
-      IsoGaussian (LitList mes) sd -> case sd of
-        LitDouble s -> do
-          let indiv element = case element of
-                LitDouble m -> fmap LitDouble (normal m s g)
-                LitInt m    -> fmap LitDouble (normal (fromIntegral m) s g)
-                _ -> error "type error"
-          val <- fmap LitList (traverse indiv mes)
-          samp (next val) g
-
-        LitInt s -> do
-          let sdub = fromIntegral s
-              indiv element = case element of
-                LitDouble m -> fmap LitDouble (normal m sdub g)
-                LitInt m    -> fmap LitDouble (normal (fromIntegral m) sdub g)
-                _ -> error "type error"
-          val <- fmap LitList (traverse indiv mes)
-          samp (next val) g
-
-        _ -> error "Type error"
-
-      Gamma ay be -> case (ay, be) of
-        (LitDouble a, LitDouble b) -> do
-          val <- fmap LitDouble (gamma a b g)
-          samp (next val) g
-
-        (LitInt a, LitInt b) -> do
-          let (aye, bee) = (fromIntegral a, fromIntegral b)
-          val <- fmap LitDouble (gamma aye bee g)
-          samp (next val) g
-
-        (LitDouble a, LitInt b) -> do
-          let (aye, bee) = (a, fromIntegral b)
-          val <- fmap LitDouble (gamma aye bee g)
-          samp (next val) g
-
-        (LitInt a, LitDouble b) -> do
-          let (aye, bee) = (fromIntegral a, b)
-          val <- fmap LitDouble (gamma aye bee g)
-          samp (next val) g
-
-        _ -> error "Type error"
-
-      Beta ay be -> case (ay, be) of
-        (LitDouble a, LitDouble b) -> do
-          val <- fmap LitDouble (beta a b g)
-          samp (next val) g
-
-        (LitInt a, LitInt b) -> do
-          let (aye, bee) = (fromIntegral a, fromIntegral b)
-          val <- fmap LitDouble (beta aye bee g)
-          samp (next val) g
-
-        (LitDouble a, LitInt b) -> do
-          let (aye, bee) = (a, fromIntegral b)
-          val <- fmap LitDouble (beta aye bee g)
-          samp (next val) g
-
-        (LitInt a, LitDouble b) -> do
-          let (aye, bee) = (fromIntegral a, b)
-          val <- fmap LitDouble (beta aye bee g)
-          samp (next val) g
-
-        _ -> error "Type error"
-
-    Returning a -> return a
-
--- | A posterior or 'backwards-mode' interpreter for our language.  Returns
---   values proportional to the log-posterior probabilities associated with
---   each parameter and observation.
-logPosterior :: Map String Lit -> Program t -> Map String Double
+-- | A log posterior score interpreter.  Returns values proportional to the
+--   log-posterior probabilities associated with each parameter and
+--   observation.
+logPosterior :: Environment Lit -> Observable a -> Environment Double
 logPosterior ps =
       runIdentity
     . flip runReaderT ps
     . flip execStateT mempty
     . resolve
   where
+    resolve
+      :: Observable a
+      -> StateT (Environment Double) (ReaderT (Environment Lit) Identity) ()
+    resolve Pure {}  = return ()
     resolve (Free e) = case e of
       Observe name dist next -> case dist of
-        Binomial en pe -> case (en, pe) of
-          (LitInt n, LitDouble p) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitInt j    -> j
-                  LitDouble j -> truncate j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score = log $ probability (Statistics.binomial n p) cx
-            modify $ Map.insert name score
-            resolve (next (LitInt cx))
 
-          (LitDouble n, LitDouble p) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitInt j    -> j
-                  LitDouble j -> truncate j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score = log $ probability (Statistics.binomial (truncate n) p) cx
-            modify $ Map.insert name score
-            resolve (next (LitInt cx))
-
-          _ -> error $ "type error (posterior), " <> show (en, pe)
-
-        Gaussian me sd -> case (me, sd) of
-          (LitDouble m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score = log $ density (Statistics.normalDistr m s) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          (LitInt m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, fromIntegral s)
-                score = log $ density (Statistics.normalDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          (LitDouble m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (m, fromIntegral s)
-                score = log $ density (Statistics.normalDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          (LitInt m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, s)
-                score = log $ density (Statistics.normalDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          _ -> error $ "type error (posterior), " <> show (me, sd)
-
-        StandardGaussian -> do
-          store <- lift ask
-          let val = fromJust $ Map.lookup name store
-              cx  = case val of
-                LitDouble j -> j
-                LitInt j    -> fromIntegral j
-                _ -> error $ "type error, parameter '" <> name <> "'"
-              score = log $ density Statistics.standard cx
+        Binomial n p -> do
+          val <- fmap (extractInt name) (lift ask)
+          let score = log $ probability (Statistics.binomial n p) val
           modify $ Map.insert name score
-          resolve (next (LitDouble cx))
+          resolve (next val)
 
-        IsoGaussian (LitList mes) sd -> case sd of
-          LitDouble s -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cxs = case val of
-                  LitList xs -> xs
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score (mean, value) = case (mean, value) of
-                  (LitDouble m, LitDouble v) ->
-                    log $ density (Statistics.normalDistr m s) v
-                  (LitInt m, LitDouble v)    ->
-                    log $ density (Statistics.normalDistr (fromIntegral m) s) v
-                  (LitDouble m, LitInt v)    ->
-                    log $ density (Statistics.normalDistr m s) (fromIntegral v)
-                  (LitInt m, LitInt v)       ->
-                    log $ density (Statistics.normalDistr (fromIntegral m) s) (fromIntegral v)
-                  _ -> error $ "type error, parameter '" <> name <> "'"
+        Beta a b -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ density (Statistics.betaDistr a b) val
+          modify $ Map.insert name score
+          resolve (next val)
 
-                result = sum (fmap score (zip mes cxs))
-            modify $ Map.insert name result
-            resolve (next val)
+        Gamma a b -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ density (Statistics.gammaDistr a b) val
+          modify $ Map.insert name score
+          resolve (next val)
 
-          LitInt s -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                es  = fromIntegral s
-                cxs = case val of
-                  LitList xs -> xs
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score (mean, value) = case (mean, value) of
-                  (LitDouble m, LitDouble v) ->
-                    log $ density (Statistics.normalDistr m es) v
-                  (LitInt m, LitDouble v)    ->
-                    log $ density (Statistics.normalDistr (fromIntegral m) es) v
-                  (LitDouble m, LitInt v)    ->
-                    log $ density (Statistics.normalDistr m es) (fromIntegral v)
-                  (LitInt m, LitInt v)       ->
-                    log $ density (Statistics.normalDistr (fromIntegral m) es) (fromIntegral v)
-                  _ -> error $ "type error, parameter '" <> name <> "'"
+        Normal a b -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ density (Statistics.normalDistr a b) val
+          modify $ Map.insert name score
+          resolve (next val)
 
-                result = sum (fmap score (zip mes cxs))
-            modify $ Map.insert name result
-            resolve (next val)
+        Standard -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ density Statistics.standard val
+          modify $ Map.insert name score
+          resolve (next val)
 
-          _ -> error $ "type error (posterior), " <> show (mes, sd)
+        IsoGauss mus s -> do
+          val <- fmap (extractVec name) (lift ask)
+          let vals = fmap (grabDouble name) val
+              scorer m v = log $ density (Statistics.normalDistr m s) v
+              score      = sum $ zipWith scorer mus vals
+          modify $ Map.insert name score
+          resolve (next vals)
 
-        Gamma me sd -> case (me, sd) of
-          (LitDouble m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score = log $ density (Statistics.gammaDistr m s) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
+-- | Forward-mode measure interpreter.  Produces a measure according to the
+--   joint distribution, but only returns the leaf node of the graph.
+forwardMeasure :: Observable a -> Measure a
+forwardMeasure = measure where
+  measure :: Observable a -> Measure a
+  measure (Pure r) = return r
+  measure (Free e) = case e of
+    Observe _ dist next -> case dist of
 
-          (LitInt m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, fromIntegral s)
-                score = log $ density (Statistics.gammaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
+      Binomial n p -> do
+        value <- Measurable.binomial n p
+        measure (next value)
 
-          (LitDouble m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (m, fromIntegral s)
-                score = log $ density (Statistics.gammaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
+      Beta a b -> do
+        value <- Measurable.beta a b
+        measure (next value)
 
-          (LitInt m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, s)
-                score = log $ density (Statistics.gammaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
+      Gamma a b -> do
+        value <- Measurable.gamma a b
+        measure (next value)
 
-          _ -> error $ "type error (posterior), " <> show (me, sd)
+      Standard -> do
+        value <- Measurable.standard
+        measure (next value)
 
-        Beta me sd -> case (me, sd) of
-          (LitDouble m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                score = log $ density (Statistics.betaDistr m s) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
+      Normal a b -> do
+        value <- Measurable.normal a b
+        measure (next value)
 
-          (LitInt m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, fromIntegral s)
-                score = log $ density (Statistics.betaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          (LitDouble m, LitInt s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (m, fromIntegral s)
-                score = log $ density (Statistics.betaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          (LitInt m, LitDouble s) -> do
-            store <- lift ask
-            let val = fromJust $ Map.lookup name store
-                cx  = case val of
-                  LitDouble j -> j
-                  LitInt j    -> fromIntegral j
-                  _ -> error $ "type error, parameter '" <> name <> "'"
-                (em, es)      = (fromIntegral m, s)
-                score = log $ density (Statistics.betaDistr em es) cx
-            modify $ Map.insert name score
-            resolve (next (LitDouble cx))
-
-          _ -> error $ "type error (posterior), " <> show (me, sd)
-
-      Returning a -> return a
+      IsoGauss mus s -> do
+        value <- traverse (\m -> Measurable.normal m s) mus
+        measure (next value)
 
