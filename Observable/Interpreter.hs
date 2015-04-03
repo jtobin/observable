@@ -16,8 +16,7 @@ import Measurable.Core
 import qualified Measurable.Measures as Measurable
 import Observable.Core
 import Observable.Utils
-import System.Random.MWC
-import System.Random.MWC.Distributions
+import System.Random.MWC.Probability
 import Statistics.Distribution
 import qualified Statistics.Distribution.Beta as Statistics
 import qualified Statistics.Distribution.Binomial as Statistics
@@ -26,38 +25,36 @@ import qualified Statistics.Distribution.Normal as Statistics
 
 -- | A forward-mode sampling interpreter.  Produces a sample from the joint
 --   distribution and returns it in IO.
-sample :: Observable a -> IO a
-sample expr = withSystemRandom . asGenIO $ samp expr where
-  samp
-    :: (Applicative m, PrimMonad m)
-    => Observable a -> Gen (PrimState m) -> m a
-  samp (Pure r) _   = return r
-  samp (Free e) gen = case e of
+simulate :: Observable a -> IO a
+simulate expr = withSystemRandom . asGenIO $ sample (eval expr) where
+  eval :: (Applicative m, PrimMonad m) => Observable a -> Prob m a
+  eval (Pure r) = return r
+  eval (Free e) = case e of
 
     Observe _ dist next -> case dist of
       Binomial n p -> do
-        value <- binomial n p gen
-        samp (next value) gen
+        value <- binomial n p
+        eval (next value)
 
       Beta a b -> do
-        value <- beta a b gen
-        samp (next value) gen
+        value <- beta a b
+        eval (next value)
 
       Gamma a b -> do
-        value <- beta a b gen
-        samp (next value) gen
+        value <- beta a b
+        eval (next value)
 
       Standard -> do
-        value <- standard gen
-        samp (next value) gen
+        value <- standard
+        eval (next value)
 
       Normal a b -> do
-        value <- normal a b gen
-        samp (next value) gen
+        value <- normal a b
+        eval (next value)
 
       IsoGauss mus s -> do
-        value <- traverse (\m -> normal m s gen) mus
-        samp (next value) gen
+        value <- traverse (\m -> normal m s) mus
+        eval (next value)
 
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
