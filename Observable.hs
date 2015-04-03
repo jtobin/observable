@@ -1,5 +1,7 @@
 
-module Observable where
+module Observable (
+    module OModule
+  ) where
 
 import Observable.Core as OModule
 import Observable.Examples as OModule
