@@ -2,14 +2,9 @@
 
 module Observable.Utils where
 
-import Control.Monad
-import Control.Monad.Primitive
-import Data.List
 import Data.Monoid
 import qualified Data.Map as Map
 import Observable.Core
-import System.Random.MWC
-import System.Random.MWC.Distributions
 
 extractInt :: String -> Environment Lit -> Int
 extractInt name store = case Map.lookup name store of

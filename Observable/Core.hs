@@ -50,20 +50,22 @@ observe name dist = liftF (Observe name dist id)
 
 -- | Supported probability distributions.
 data Distribution :: * -> * where
-  Beta     :: Double -> Double -> Distribution Double
-  Binomial :: Int -> Double -> Distribution Int
-  Standard :: Distribution Double
-  Normal   :: Double -> Double -> Distribution Double
-  Gamma    :: Double -> Double -> Distribution Double
-  IsoGauss :: [Double] -> Double -> Distribution [Double]
+  Beta        :: Double -> Double -> Distribution Double
+  Binomial    :: Int -> Double -> Distribution Int
+  Standard    :: Distribution Double
+  Normal      :: Double -> Double -> Distribution Double
+  Gamma       :: Double -> Double -> Distribution Double
+  IsoGauss    :: [Double] -> Double -> Distribution [Double]
+  IsoStandard :: Int -> Distribution [Double]
 
 instance Show a => Show (Distribution a) where
-  show (Beta a b)     = "Beta " <> show a <> " " <> show b
-  show (Binomial a b) = "Binomial " <> show a <> " " <> show b
-  show Standard       = "Standard"
-  show (Normal a b)   = "Normal " <> show a <> show b
-  show (Gamma a b)    = "Gamma " <> show a <> " " <> show b
-  show (IsoGauss a b) = "IsoGauss " <> show a <> " " <> show b
+  show (Beta a b)        = "Beta " <> show a <> " " <> show b
+  show (Binomial a b)    = "Binomial " <> show a <> " " <> show b
+  show Standard          = "Standard"
+  show (Normal a b)      = "Normal " <> show a <> show b
+  show (Gamma a b)       = "Gamma " <> show a <> " " <> show b
+  show (IsoGauss a b)    = "IsoGauss " <> show a <> " " <> show b
+  show (IsoStandard _)   = "IsoStandard"
 
 -- | Wrapped literal values required for passing information to the
 --   logPosterior interpreter.

@@ -4,6 +4,7 @@
 module Observable.Interpreter where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -58,6 +59,10 @@ simulate expr = sample (eval expr) where
 
       IsoGauss mus s -> do
         value <- traverse (`normal` s) mus
+        eval (next value)
+
+      IsoStandard n -> do
+        value <- replicateM n standard
         eval (next value)
 
 -- | A log posterior score interpreter.  Returns values proportional to the
@@ -115,6 +120,14 @@ logPosterior ps =
           modify $ Map.insert name score
           resolve (next vals)
 
+        IsoStandard _ -> do
+          val <- fmap (extractVec name) (lift ask)
+          let vals = fmap (grabDouble name) val
+              scorer = log . density Statistics.standard
+              score  = sum $ fmap scorer vals
+          modify $ Map.insert name score
+          resolve (next vals)
+
 -- | Forward-mode measure interpreter.  Produces a measure according to the
 --   joint distribution, but only returns the leaf node of the graph.
 forwardMeasure :: Observable a -> Measure a
@@ -146,5 +159,9 @@ forwardMeasure = measure where
 
       IsoGauss mus s -> do
         value <- traverse (`Measurable.normal` s) mus
+        measure (next value)
+
+      IsoStandard n -> do
+        value <- replicateM n Measurable.standard
         measure (next value)
 
