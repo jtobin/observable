@@ -35,43 +35,34 @@ simulate expr = sample (eval expr) where
   eval :: (Applicative m, PrimMonad m) => Observable a -> Prob m a
   eval (Pure r) = return r
   eval (Free e) = case e of
-
     Observe _ dist next -> case dist of
-      Binomial n p -> do
-        value <- binomial n p
-        eval (next value)
+      Binomial n p   -> eval . next =<< binomial n p
+      Beta a b       -> eval . next =<< beta a b
+      Gamma a b      -> eval . next =<< gamma a b
+      InvGamma a b   -> eval . next =<< inverseGamma a b
+      Standard       -> eval . next =<< standard
+      Normal a b     -> eval . next =<< normal a b
+      Student m k    -> eval . next =<< t m 1 k
+      IsoGauss mus s -> eval . next =<< traverse (`normal` s) mus
+      IsoStandard n  -> eval . next =<< replicateM n standard
 
-      Beta a b -> do
-        value <- beta a b
-        eval (next value)
-
-      Gamma a b -> do
-        value <- gamma a b
-        eval (next value)
-
-      InvGamma a b -> do
-        value <- inverseGamma a b
-        eval (next value)
-
-      Standard -> do
-        value <- standard
-        eval (next value)
-
-      Normal a b -> do
-        value <- normal a b
-        eval (next value)
-
-      Student m k -> do
-        value <- t m 1 k
-        eval (next value)
-
-      IsoGauss mus s -> do
-        value <- traverse (`normal` s) mus
-        eval (next value)
-
-      IsoStandard n -> do
-        value <- replicateM n standard
-        eval (next value)
+-- | Forward-mode measure interpreter.  Produces a measure according to the
+--   joint distribution, but only returns the leaf node of the graph.
+forwardMeasure :: Observable a -> Measure a
+forwardMeasure = measure where
+  measure :: Observable a -> Measure a
+  measure (Pure r) = return r
+  measure (Free e) = case e of
+    Observe _ dist next -> let continue = measure . next in case dist of
+      Binomial n p   -> continue =<< Measurable.binomial n p
+      Beta a b       -> continue =<< Measurable.beta a b
+      Gamma a b      -> continue =<< Measurable.gamma a b
+      InvGamma a b   -> continue =<< fromDensityFunction (invGamma a b)
+      Standard       -> continue =<< Measurable.standard
+      Normal a b     -> continue =<< Measurable.normal a b
+      Student m k    -> continue =<< fromDensityFunction (tDensity m 1 k)
+      IsoGauss mus s -> continue =<< traverse (`Measurable.normal` s) mus
+      IsoStandard n  -> continue =<< replicateM n Measurable.standard
 
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
@@ -147,49 +138,4 @@ logPosterior ps =
               score  = sum $ fmap scorer vals
           modify $ Map.insert name score
           resolve (next vals)
-
--- | Forward-mode measure interpreter.  Produces a measure according to the
---   joint distribution, but only returns the leaf node of the graph.
-forwardMeasure :: Observable a -> Measure a
-forwardMeasure = measure where
-  measure :: Observable a -> Measure a
-  measure (Pure r) = return r
-  measure (Free e) = case e of
-    Observe _ dist next -> case dist of
-
-      Binomial n p -> do
-        value <- Measurable.binomial n p
-        measure (next value)
-
-      Beta a b -> do
-        value <- Measurable.beta a b
-        measure (next value)
-
-      Gamma a b -> do
-        value <- Measurable.gamma a b
-        measure (next value)
-
-      InvGamma a b -> do
-        value <- fromDensityFunction (invGamma a b)
-        measure (next value)
-
-      Standard -> do
-        value <- Measurable.standard
-        measure (next value)
-
-      Normal a b -> do
-        value <- Measurable.normal a b
-        measure (next value)
-
-      Student m k -> do
-        value <- fromDensityFunction (tDensity m 1 k)
-        measure (next value)
-
-      IsoGauss mus s -> do
-        value <- traverse (`Measurable.normal` s) mus
-        measure (next value)
-
-      IsoStandard n -> do
-        value <- replicateM n Measurable.standard
-        measure (next value)
 
