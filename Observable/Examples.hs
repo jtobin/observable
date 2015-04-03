@@ -1,8 +1,10 @@
 
 module Observable.Examples where
 
+import Control.Monad
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Traversable
 import Observable.Core
 import Observable.Interpreter
 
@@ -24,13 +26,29 @@ example = logPosterior vs exampleBb where
 
 -- | An example Bayesian linear regression model.
 linearFit :: Lit -> Lit -> Lit -> Program Lit
-linearFit c d obs = do
-  a   <- observe "intercept" (Gaussian 0 1)
-  b   <- observe "slope" (Gaussian 0 1)
+linearFit c d (LitList xs) = do
+  a   <- observe "intercept" StandardGaussian
+  b   <- observe "slope" StandardGaussian
   var <- observe "variance" (Gamma c d)
   let linear v = a + b * v
-  x   <- observe "x" (Gaussian (linear obs) var)
-  returning x
+      mus      = list (fmap linear xs)
+  ys  <- observe "ys" (IsoGaussian mus var)
+  returning ys
 
-
+-- | An example 1D Gaussian mixture model, containing three mixtures.
+--
+--   NB cut this, too much superfluous work and not enough reward
+-- mixture n a = do
+--   ps <- observe "theta" (SymmetricDirichlet 3 a)
+--   LitList zs <- observe "labels" (Multinomial n ps)
+--
+--   let mean group = case group of
+--         LitInt 0 -> double 0
+--         LitInt 1 -> double 1
+--         LitInt 2 -> double 5
+--
+--       means = list (fmap mean zs)
+--
+--   xs <- observe "xs" (IsoGaussian means 1)
+--   returning xs
 

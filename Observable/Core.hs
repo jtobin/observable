@@ -125,11 +125,24 @@ instance Fractional Lit where
 
   fromRational = LitDouble . fromRational
 
+list :: [Lit] -> Lit
+list = LitList
+
+double :: Double -> Lit
+double = LitDouble
+
+int :: Int -> Lit
+int = LitInt
+
 -- | An abstract probability distribution type.
 data Distribution =
     Binomial Lit Lit
+  | StandardGaussian
   | Gaussian Lit Lit
+  | IsoGaussian Lit Lit
   | Gamma Lit Lit
   | Beta Lit Lit
+  | SymmetricDirichlet Lit Lit
+  | Multinomial Lit Lit
   deriving (Eq, Show)
 
