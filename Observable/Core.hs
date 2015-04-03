@@ -71,6 +71,33 @@ instance Show a => Show (Distribution a) where
   show (IsoGauss a b)    = "IsoGauss " <> show a <> " " <> show b
   show (IsoStandard _)   = "IsoStandard"
 
+beta :: Double -> Double -> Distribution Double
+beta = Beta
+
+binomial :: Int -> Double -> Distribution Int
+binomial = Binomial
+
+standard :: Distribution Double
+standard = Standard
+
+normal :: Double -> Double -> Distribution Double
+normal = Normal
+
+student :: Double -> Double -> Distribution Double
+student = Student
+
+gamma :: Double -> Double -> Distribution Double
+gamma = Gamma
+
+invGamma :: Double -> Double -> Distribution Double
+invGamma = InvGamma
+
+isoGauss :: [Double] -> Double -> Distribution [Double]
+isoGauss = IsoGauss
+
+isoStandard :: Int -> Distribution [Double]
+isoStandard = IsoStandard
+
 -- | Wrapped literal values required for passing information to the
 --   logPosterior interpreter.
 data Lit =
