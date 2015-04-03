@@ -11,6 +11,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
+  ghc-options:       -O2 -Wall
   exposed-modules:
       Observable
     , Observable.Core
@@ -22,7 +23,7 @@ library
       base            >= 4.7 && <4.8
     , containers
     , measurable      >= 1.0.0.1
-    , mwc-probability >= 0.1.0.0
+    , mwc-probability >= 0.2.0.0
     , mwc-random
     , primitive
     , statistics
