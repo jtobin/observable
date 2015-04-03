@@ -68,8 +68,8 @@ logPosterior ps =
   where
     resolve
       :: Observable a
-      -> StateT (Environment Double) (ReaderT (Environment Lit) Identity) ()
-    resolve Pure {}  = return ()
+      -> StateT (Environment Double) (ReaderT (Environment Lit) Identity) a
+    resolve (Pure a) = return a
     resolve (Free e) = case e of
       Observe name dist next -> case dist of
 

@@ -13,6 +13,7 @@ import Data.Monoid
 
 type Environment a = Map String a
 
+-- | GADT-constructed free monad type.
 data Free :: (* -> *) -> * -> * where
   Pure :: a -> Free f a
   Free :: f (Free f a) -> Free f a
@@ -29,20 +30,25 @@ instance Functor f => Monad (Free f) where
 
 deriving instance (Show (f (Free f a)), Show a) => Show (Free f a)
 
+-- | Embed an action into a Free.
 liftF :: Functor f => f a -> Free f a
 liftF action = Free (fmap Pure action)
 
+-- | @Observable@ terms.
 data ObservableF :: * -> * where
   Observe :: String -> Distribution a -> (a -> r) -> ObservableF r
 
 instance Functor ObservableF where
   fmap f (Observe s d k) = Observe s d (f . k)
 
+-- | @Observable@ programs.
 type Observable = Free ObservableF
 
+-- | 'Observe' constructor.
 observe :: String -> Distribution a -> Observable a
 observe name dist = liftF (Observe name dist id)
 
+-- | Supported probability distributions.
 data Distribution :: * -> * where
   Beta     :: Double -> Double -> Distribution Double
   Binomial :: Int -> Double -> Distribution Int

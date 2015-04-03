@@ -1,10 +1,7 @@
 
 module Observable.Examples where
 
-import Control.Monad
-import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Traversable
 import Observable.Core
 import Observable.Interpreter
 
