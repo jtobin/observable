@@ -25,8 +25,12 @@ import qualified Statistics.Distribution.Normal as Statistics
 
 -- | A forward-mode sampling interpreter.  Produces a sample from the joint
 --   distribution and returns it in IO.
-simulate :: Observable a -> IO a
-simulate expr = withSystemRandom . asGenIO $ sample (eval expr) where
+simulate
+  :: (Applicative m, PrimMonad m)
+  => Observable a
+  -> Gen (PrimState m)
+  -> m a
+simulate expr = sample (eval expr) where
   eval :: (Applicative m, PrimMonad m) => Observable a -> Prob m a
   eval (Pure r) = return r
   eval (Free e) = case e of
@@ -41,7 +45,7 @@ simulate expr = withSystemRandom . asGenIO $ sample (eval expr) where
         eval (next value)
 
       Gamma a b -> do
-        value <- beta a b
+        value <- gamma a b
         eval (next value)
 
       Standard -> do
@@ -53,7 +57,7 @@ simulate expr = withSystemRandom . asGenIO $ sample (eval expr) where
         eval (next value)
 
       IsoGauss mus s -> do
-        value <- traverse (\m -> normal m s) mus
+        value <- traverse (`normal` s) mus
         eval (next value)
 
 -- | A log posterior score interpreter.  Returns values proportional to the
@@ -141,6 +145,6 @@ forwardMeasure = measure where
         measure (next value)
 
       IsoGauss mus s -> do
-        value <- traverse (\m -> Measurable.normal m s) mus
+        value <- traverse (`Measurable.normal` s) mus
         measure (next value)
 
