@@ -19,8 +19,9 @@ library
     , Observable.Utils
   default-language:    Haskell2010
   build-depends:
-      base >=4.7 && <4.8
+      base       >= 4.7 && <4.8
     , containers
+    , measurable >= 1.0.0.1
     , mwc-random
     , primitive
     , statistics
