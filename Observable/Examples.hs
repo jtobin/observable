@@ -8,8 +8,8 @@ import Observable.Interpreter
 -- | A simple beta-binomial model for testing.
 betaBinomial :: Int -> Double -> Double -> Observable Int
 betaBinomial n a b = do
-  p <- observe "p" (Beta a b)
-  observe "x" (Binomial n p)
+  p <- observe "p" (beta a b)
+  observe "x" (binomial n p)
 
 -- | An example beta-binomial model with saturated hyperparameters.
 exampleBb :: Observable Int
@@ -23,18 +23,18 @@ example = logPosterior vs exampleBb where
 -- | An example Bayesian linear regression model.
 linearFit :: Double -> Double -> [Double] -> Observable [Double]
 linearFit c d xs = do
-  a   <- observe "intercept" Standard
-  b   <- observe "slope" Standard
-  var <- observe "variance" (Gamma c d)
+  a   <- observe "intercept" standard
+  b   <- observe "slope" standard
+  var <- observe "variance" (gamma c d)
   let mus = fmap (\v -> a + b * v) xs
-  observe "ys" (IsoGauss mus var)
+  observe "ys" (isoGauss mus var)
 
 -- | An example Bayesian linear regression model.
 trigFit :: Double -> Double -> [Double] -> Observable [Double]
 trigFit c d xs = do
-  as  <- observe "coeffs" (IsoStandard 3)
-  var <- observe "variance" (Gamma c d)
+  as  <- observe "coeffs" (isoStandard 3)
+  var <- observe "variance" (gamma c d)
   let model v = sum $ zipWith (*) as [1, cos v, sin v]
   let mus     = fmap model xs
-  observe "ys" (IsoGauss mus var)
+  observe "ys" (isoGauss mus var)
 

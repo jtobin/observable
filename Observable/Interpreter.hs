@@ -15,7 +15,17 @@ import Data.Monoid
 import Data.Traversable
 import Measurable.Core
 import qualified Measurable.Measures as Measurable
-import Observable.Core
+import Observable.Core hiding (
+    beta
+  , binomial
+  , gamma
+  , invGamma
+  , normal
+  , standard
+  , student
+  , isoGauss
+  , isoStandard
+  )
 import Observable.Utils
 import System.Random.MWC.Probability
 import Statistics.Distribution
