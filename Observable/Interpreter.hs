@@ -125,3 +125,25 @@ logPosterior ps =
           modify $ Map.insert name score
           resolve (next val)
 
+-- | Condition a model on some data.
+--
+--   @
+--     bb = do
+--       p <- observe "p" (beta 1 3)
+--       observe "x" (binomial 10 p)
+--
+--     observation = Map.fromList [("x", int 3)]
+--
+--     bbPosterior = condition bb observation
+--   @
+--
+--   >>> :t bbPosterior
+--   bbPosterior :: Environment Lit -> Environment Double
+--
+--   >>> bbPosterior (Map.fromList [("p", double 0.3)])
+--   fromList [("p",0.385262399000244),("x",-1.3211512777668892)]
+--
+condition
+  :: Observable a -> Environment Lit -> Environment Lit -> Environment Double
+condition prog xs ps = logPosterior (ps <> xs) prog
+
