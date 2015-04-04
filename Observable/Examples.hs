@@ -2,10 +2,10 @@
 module Observable.Examples where
 
 import Control.Monad
-import qualified Data.Map as Map
 import Data.Traversable
 import Observable.Core
 import Observable.Interpreter
+import Observable.Utils
 
 -- | A simple beta-binomial model for testing.
 betaBinomial :: Int -> Double -> Double -> Observable Int
@@ -20,7 +20,7 @@ exampleBb = betaBinomial 10 1 8
 -- -- | Example scores for the exampleBb program.
 example :: Environment Double
 example = logPosterior vs exampleBb where
-  vs = Map.fromList [("p", double 0.1), ("x", int 8)]
+  vs = parameters [("p", double 0.1), ("x", int 8)]
 
 -- | An example Bayesian linear regression model.
 linearFit :: Double -> Double -> [Double] -> Observable [Double]

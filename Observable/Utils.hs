@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import Observable.Core
 import Numeric.SpecFunctions
 
-extractInt :: String -> Environment Dynamic -> Int
+extractInt :: String -> Parameters -> Int
 extractInt name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
   Just v  -> case fromDynamic v of
@@ -17,7 +17,7 @@ extractInt name store = case Map.lookup name store of
     _      -> error $
       "expected Integer for parameter '" <> name <> "', got: " <> show v
 
-extractDouble :: String -> Environment Dynamic -> Double
+extractDouble :: String -> Parameters -> Double
 extractDouble name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
   Just v  -> case fromDynamic v of
@@ -25,7 +25,7 @@ extractDouble name store = case Map.lookup name store of
     _      -> error $
       "expected Double for parameter '" <> name <> "', got: " <> show v
 
-extractVec :: (Num a, Typeable a) => String -> Environment Dynamic -> [a]
+extractVec :: (Num a, Typeable a) => String -> Parameters -> [a]
 extractVec name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
   Just v  -> case fromDynamic v of
@@ -52,4 +52,8 @@ tDensity m s v x =
         logGamma ((v + 1) / 2)
       - logGamma (v / 2)
       - 0.5 * (log pi + log v + log s)
+
+-- | Alias for Map.fromList.
+parameters :: [(String, Dynamic)] -> Parameters
+parameters = Map.fromList
 

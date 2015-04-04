@@ -70,7 +70,7 @@ forwardMeasure = measure where
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
 --   observation.
-logPosterior :: Environment Dynamic -> Observable a -> Environment Double
+logPosterior :: Parameters -> Observable a -> Environment Double
 logPosterior ps =
       runIdentity
     . flip runReaderT ps
@@ -79,7 +79,7 @@ logPosterior ps =
   where
     resolve
       :: Observable a
-      -> StateT (Environment Double) (ReaderT (Environment Dynamic) Identity) a
+      -> StateT (Environment Double) (ReaderT Parameters Identity) a
     resolve (Pure a) = return a
     resolve (Free e) = case e of
       Observe name dist next -> case dist of
@@ -146,7 +146,7 @@ logPosterior ps =
 --
 condition
   :: Observable a
-  -> Environment Dynamic
+  -> Parameters
   -> Environment Dynamic
   -> Environment Double
 condition prog xs ps = logPosterior (ps <> xs) prog

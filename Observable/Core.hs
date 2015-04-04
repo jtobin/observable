@@ -14,6 +14,8 @@ import Data.Monoid
 
 type Environment a = Map String a
 
+type Parameters = Environment Dynamic
+
 -- | GADT-constructed free monad type.
 data Free :: (* -> *) -> * -> * where
   Pure :: a -> Free f a
@@ -98,3 +100,5 @@ double = toDyn
 vector :: (Num a, Typeable a) => [a] -> Dynamic
 vector = toDyn
 
+parameter :: Typeable a => a -> Dynamic
+parameter = toDyn
