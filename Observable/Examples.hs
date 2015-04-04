@@ -1,7 +1,9 @@
 
 module Observable.Examples where
 
+import Control.Monad
 import qualified Data.Map as Map
+import Data.Traversable
 import Observable.Core
 import Observable.Interpreter
 
@@ -26,15 +28,13 @@ linearFit c d xs = do
   a   <- observe "intercept" standard
   b   <- observe "slope" standard
   var <- observe "variance" (gamma c d)
-  let mus = fmap (\v -> a + b * v) xs
-  observe "ys" (isoGauss mus var)
+  for xs (\x -> observe "ys" (normal (a + b * x) var))
 
 -- | An example Bayesian linear regression model.
 trigFit :: Double -> Double -> [Double] -> Observable [Double]
 trigFit c d xs = do
-  as  <- observe "coeffs" (isoStandard 3)
+  as  <- replicateM 3 (observe "coeffs" standard)
   var <- observe "variance" (gamma c d)
   let model v = sum $ zipWith (*) as [1, cos v, sin v]
-  let mus     = fmap model xs
-  observe "ys" (isoGauss mus var)
+  for xs (\x -> observe "ys" (normal (model x) var))
 

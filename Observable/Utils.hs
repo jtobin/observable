@@ -37,8 +37,8 @@ grabDouble _ (LitDouble j) = j
 grabDouble name _ = error $ "expected Double for value inside '" <> name <> "'"
 
 -- | Inverse gamma density.
-invGamma :: Double -> Double -> Double -> Double
-invGamma a b x =
+invGammaDensity :: Double -> Double -> Double -> Double
+invGammaDensity a b x =
   b ** a / exp (logGamma a) * x ** (negate a - 1) * exp (negate b / x)
 
 -- | Nonstandard t density.

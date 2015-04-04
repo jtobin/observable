@@ -4,7 +4,6 @@
 module Observable.Interpreter where
 
 import Control.Applicative
-import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -12,7 +11,6 @@ import Control.Monad.Primitive
 import Data.Functor.Identity
 import qualified Data.Map as Map
 import Data.Monoid
-import Data.Traversable
 import Measurable.Core
 import qualified Measurable.Measures as Measurable
 import Observable.Core hiding (
@@ -23,8 +21,6 @@ import Observable.Core hiding (
   , normal
   , standard
   , student
-  , isoGauss
-  , isoStandard
   )
 import Observable.Utils
 import System.Random.MWC.Probability
@@ -53,8 +49,6 @@ simulate expr = sample (eval expr) where
       Standard       -> eval . next =<< standard
       Normal a b     -> eval . next =<< normal a b
       Student m k    -> eval . next =<< t m 1 k
-      IsoGauss mus s -> eval . next =<< traverse (`normal` s) mus
-      IsoStandard n  -> eval . next =<< replicateM n standard
 
 -- | Forward-mode measure interpreter.  Produces a measure according to the
 --   joint distribution, but only returns the leaf node of the graph.
@@ -67,12 +61,10 @@ forwardMeasure = measure where
       Binomial n p   -> continue =<< Measurable.binomial n p
       Beta a b       -> continue =<< Measurable.beta a b
       Gamma a b      -> continue =<< Measurable.gamma a b
-      InvGamma a b   -> continue =<< fromDensityFunction (invGamma a b)
+      InvGamma a b   -> continue =<< fromDensityFunction (invGammaDensity a b)
       Standard       -> continue =<< Measurable.standard
       Normal a b     -> continue =<< Measurable.normal a b
       Student m k    -> continue =<< fromDensityFunction (tDensity m 1 k)
-      IsoGauss mus s -> continue =<< traverse (`Measurable.normal` s) mus
-      IsoStandard n  -> continue =<< replicateM n Measurable.standard
 
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
@@ -111,7 +103,7 @@ logPosterior ps =
 
         InvGamma a b -> do
           val <- fmap (extractDouble name) (lift ask)
-          let score = log $ invGamma a b val
+          let score = log $ invGammaDensity a b val
           modify $ Map.insert name score
           resolve (next val)
 
@@ -132,20 +124,4 @@ logPosterior ps =
           let score = log $ density Statistics.standard val
           modify $ Map.insert name score
           resolve (next val)
-
-        IsoGauss mus s -> do
-          val <- fmap (extractVec name) (lift ask)
-          let vals = fmap (grabDouble name) val
-              scorer m v = log $ density (Statistics.normalDistr m s) v
-              score      = sum $ zipWith scorer mus vals
-          modify $ Map.insert name score
-          resolve (next vals)
-
-        IsoStandard _ -> do
-          val <- fmap (extractVec name) (lift ask)
-          let vals = fmap (grabDouble name) val
-              scorer = log . density Statistics.standard
-              score  = sum $ fmap scorer vals
-          modify $ Map.insert name score
-          resolve (next vals)
 
