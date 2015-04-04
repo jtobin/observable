@@ -3,38 +3,40 @@
 
 module Observable.Utils where
 
+import Data.Dynamic
 import Data.Monoid
 import qualified Data.Map as Map
 import Observable.Core
 import Numeric.SpecFunctions
 
-extractInt :: String -> Environment Lit -> Int
+extractInt :: String -> Environment Dynamic -> Int
 extractInt name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    LitInt j -> j
-    _ -> error $
+  Just v  -> case fromDynamic v of
+    Just j -> j
+    _      -> error $
       "expected Integer for parameter '" <> name <> "', got: " <> show v
 
-extractDouble :: String -> Environment Lit -> Double
+extractDouble :: String -> Environment Dynamic -> Double
 extractDouble name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    LitDouble j -> j
-    _ -> error $
+  Just v  -> case fromDynamic v of
+    Just j -> j
+    _      -> error $
       "expected Double for parameter '" <> name <> "', got: " <> show v
 
-extractVec :: String -> Environment Lit -> [Lit]
+extractVec :: (Num a, Typeable a) => String -> Environment Dynamic -> [a]
 extractVec name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    LitVec j -> j
+  Just v  -> case fromDynamic v of
+    Just j -> j
     _ -> error $
       "expected Vector for parameter '" <> name <> "', got: " <> show v
 
-grabDouble :: String -> Lit -> Double
-grabDouble _ (LitDouble j) = j
-grabDouble name _ = error $ "expected Double for value inside '" <> name <> "'"
+grabDouble :: String -> Dynamic -> Double
+grabDouble name v = case fromDynamic v of
+  Just j  -> j
+  Nothing -> error $ "expected Double for value inside '" <> name <> "'"
 
 -- | Inverse gamma density.
 invGammaDensity :: Double -> Double -> Double -> Double

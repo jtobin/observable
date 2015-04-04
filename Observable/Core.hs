@@ -8,6 +8,7 @@ module Observable.Core where
 
 import Control.Applicative
 import Control.Monad
+import Data.Dynamic
 import Data.Map (Map)
 import Data.Monoid
 
@@ -88,25 +89,12 @@ gamma = Gamma
 invGamma :: Double -> Double -> Distribution Double
 invGamma = InvGamma
 
--- | Wrapped literal values required for passing information to the
---   logPosterior interpreter.
-data Lit =
-    LitInt Int
-  | LitDouble Double
-  | LitVec [Lit]
-  deriving Eq
+int :: Int -> Dynamic
+int = toDyn
 
-instance Show Lit where
-  show (LitInt j)    = "Int " <> show j
-  show (LitDouble j) = "Double " <> show j
-  show (LitVec j)    = "Vector " <> show j
+double :: Double -> Dynamic
+double = toDyn
 
-int :: Int -> Lit
-int = LitInt
-
-double :: Double -> Lit
-double = LitDouble
-
-vector :: [Lit] -> Lit
-vector = LitVec
+vector :: (Num a, Typeable a) => [a] -> Dynamic
+vector = toDyn
 
