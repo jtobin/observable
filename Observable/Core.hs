@@ -6,8 +6,7 @@
 
 module Observable.Core where
 
-import Control.Applicative
-import Control.Monad
+import Control.Monad.Free
 import Data.Dynamic
 import Data.Map (Map)
 import Data.Monoid
@@ -15,27 +14,6 @@ import Data.Monoid
 type Environment a = Map String a
 
 type Parameters = Environment Dynamic
-
--- | GADT-constructed free monad type.
-data Free :: (* -> *) -> * -> * where
-  Pure :: a -> Free f a
-  Free :: f (Free f a) -> Free f a
-  deriving Functor
-
-instance Functor f => Applicative (Free f) where
-  pure  = return
-  (<*>) = ap
-
-instance Functor f => Monad (Free f) where
-  return = Pure
-  Free c >>= f = Free (fmap (>>= f) c)
-  Pure x >>= f = f x
-
-deriving instance (Show (f (Free f a)), Show a) => Show (Free f a)
-
--- | Embed an action into a Free.
-liftF :: Functor f => f a -> Free f a
-liftF action = Free (fmap Pure action)
 
 -- | @Observable@ terms.
 data ObservableF :: * -> * where
@@ -62,13 +40,13 @@ data Distribution :: * -> * where
   InvGamma    :: Double -> Double -> Distribution Double
 
 instance Show a => Show (Distribution a) where
-  show (Beta a b)        = "Beta " <> show a <> " " <> show b
-  show (Binomial a b)    = "Binomial " <> show a <> " " <> show b
-  show Standard          = "Standard"
-  show (Normal a b)      = "Normal " <> show a <> show b
-  show (Student a b)     = "Student " <> show a <> show b
-  show (Gamma a b)       = "Gamma " <> show a <> " " <> show b
-  show (InvGamma a b)    = "InvGamma " <> show a <> " " <> show b
+  show (Beta a b)     = "Beta " <> show a <> " " <> show b
+  show (Binomial a b) = "Binomial " <> show a <> " " <> show b
+  show Standard       = "Standard"
+  show (Normal a b)   = "Normal " <> show a <> show b
+  show (Student a b)  = "Student " <> show a <> show b
+  show (Gamma a b)    = "Gamma " <> show a <> " " <> show b
+  show (InvGamma a b) = "InvGamma " <> show a <> " " <> show b
 
 beta :: Double -> Double -> Distribution Double
 beta = Beta
@@ -102,3 +80,4 @@ vector = toDyn
 
 parameter :: Typeable a => a -> Dynamic
 parameter = toDyn
+

@@ -4,6 +4,7 @@
 module Observable.Interpreter where
 
 import Control.Applicative
+import Control.Monad.Free
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
