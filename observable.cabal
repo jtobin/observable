@@ -1,5 +1,5 @@
 name:                observable
-version:             0.2.4.0
+version:             0.2.4.1
 synopsis:            A toy embedded language for probabilistic programming.
 description:         A toy embedded language for probabilistic programming.
 homepage:            http://github.com/jtobin/observable
