@@ -1,6 +1,4 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 

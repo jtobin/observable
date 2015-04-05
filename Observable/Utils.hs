@@ -74,3 +74,8 @@ squash f Gamma {}    = f 0
 squash f InvGamma {} = f 0
 squash f Uniform {}  = f 0
 
+-- | Add a value to a Maybe, treating Nothing as zero.
+add :: Num a => a -> Maybe a -> Maybe a
+add v Nothing    = Just v
+add v0 (Just v1) = Just (v0 + v1)
+

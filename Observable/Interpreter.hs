@@ -103,49 +103,49 @@ logPosterior ps =
         Binomial n p -> do
           val <- fmap (extractInt name) (lift ask)
           let score = log $ probability (Statistics.binomial n p) val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Beta a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density (Statistics.betaDistr a b) val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Gamma a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density (Statistics.gammaDistr a b) val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         InvGamma a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ invGammaDensity a b val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Normal a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density (Statistics.normalDistr a b) val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Student m k -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ tDensity m 1 k val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Standard -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density Statistics.standard val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
         Uniform a b -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density (Statistics.uniformDistr a b) val
-          modify $ Map.insert name score
+          modify $ Map.alter (add score) name
           resolve (next val)
 
 -- | Condition a model on some data.
