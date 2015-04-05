@@ -33,6 +33,18 @@ import qualified Statistics.Distribution.Gamma as Statistics
 import qualified Statistics.Distribution.Normal as Statistics
 import qualified Statistics.Distribution.Uniform as Statistics
 
+-- | A pretty-printer.  Omits hyperparameter values and bound values at their
+--   call sites, and only shows the overall structure of the AST.
+pretty :: Show a => Observable a -> String
+pretty Pure {}  = ""
+pretty (Free f) = case f of
+  Observe name dist next ->
+    let space = case squash next dist of
+          Pure _ -> ""
+          _      -> " "
+    in  "(Observe " <> name <> " (" <> show dist <> ")" <> space
+          <> pretty (squash next dist) <> ")"
+
 -- | A forward-mode sampling interpreter.  Produces a sample from the joint
 --   distribution and returns it in IO.
 simulate

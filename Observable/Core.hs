@@ -9,7 +9,6 @@ module Observable.Core where
 import Control.Monad.Free
 import Data.Dynamic
 import Data.Map (Map)
-import Data.Monoid
 
 type Environment a = Map String a
 
@@ -40,6 +39,18 @@ data Distribution :: * -> * where
   InvGamma    :: Double -> Double -> Distribution Double
   Uniform     :: Double -> Double -> Distribution Double
 
+instance Show (Distribution a) where
+  show Beta {}     = "Beta _ _"
+  show Binomial {} = "Binomial _ _"
+  show Standard    = "Standard"
+  show Normal {}   = "Normal _ _"
+  show Student {}  = "Student _ _"
+  show Gamma {}    = "Gamma _ _"
+  show InvGamma {} = "InvGamma _ _"
+  show Uniform {}  = "Uniform _ _"
+
+-- distribution constructor aliases
+
 beta :: Double -> Double -> Distribution Double
 beta = Beta
 
@@ -64,6 +75,8 @@ invGamma = InvGamma
 uniform :: Double -> Double -> Distribution Double
 uniform = Uniform
 
+-- toDyn aliases
+
 int :: Int -> Dynamic
 int = toDyn
 
@@ -72,7 +85,4 @@ double = toDyn
 
 vector :: (Num a, Typeable a) => [a] -> Dynamic
 vector = toDyn
-
-parameter :: Typeable a => a -> Dynamic
-parameter = toDyn
 

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE GADTs #-}
 
 module Observable.Utils where
 
@@ -62,4 +62,15 @@ uniformDensity a b x
 -- | Alias for Map.fromList.
 parameters :: [(String, Dynamic)] -> Parameters
 parameters = Map.fromList
+
+-- | Feed a continuation a value at the appropriate type it's expecting.
+squash :: (a -> r) -> Distribution a -> r
+squash f Beta {}     = f 0
+squash f Binomial {} = f 0
+squash f Standard    = f 0
+squash f Normal {}   = f 0
+squash f Student {}  = f 0
+squash f Gamma {}    = f 0
+squash f InvGamma {} = f 0
+squash f Uniform {}  = f 0
 
