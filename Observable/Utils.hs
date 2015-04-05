@@ -53,6 +53,12 @@ tDensity m s v x =
       - logGamma (v / 2)
       - 0.5 * (log pi + log v + log s)
 
+-- | Uniform density function.
+uniformDensity :: Double -> Double -> Double -> Double
+uniformDensity a b x
+  | x < a || x > b = 0
+  | otherwise      = 1 / (b - a)
+
 -- | Alias for Map.fromList.
 parameters :: [(String, Dynamic)] -> Parameters
 parameters = Map.fromList

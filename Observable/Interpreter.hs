@@ -31,6 +31,7 @@ import qualified Statistics.Distribution.Beta as Statistics
 import qualified Statistics.Distribution.Binomial as Statistics
 import qualified Statistics.Distribution.Gamma as Statistics
 import qualified Statistics.Distribution.Normal as Statistics
+import qualified Statistics.Distribution.Uniform as Statistics
 
 -- | A forward-mode sampling interpreter.  Produces a sample from the joint
 --   distribution and returns it in IO.
@@ -51,6 +52,7 @@ simulate expr = sample (eval expr) where
       Standard       -> eval . next =<< standard
       Normal a b     -> eval . next =<< normal a b
       Student m k    -> eval . next =<< t m 1 k
+      Uniform a b    -> eval . next =<< uniformR (a, b)
 
 -- | Forward-mode measure interpreter.  Produces a measure according to the
 --   joint distribution, but only returns the leaf node of the graph.
@@ -67,6 +69,7 @@ forwardMeasure = measure where
       Standard       -> continue =<< Measurable.standard
       Normal a b     -> continue =<< Measurable.normal a b
       Student m k    -> continue =<< fromDensityFunction (tDensity m 1 k)
+      Uniform a b    -> continue =<< fromDensityFunction (uniformDensity a b)
 
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
@@ -124,6 +127,12 @@ logPosterior ps =
         Standard -> do
           val <- fmap (extractDouble name) (lift ask)
           let score = log $ density Statistics.standard val
+          modify $ Map.insert name score
+          resolve (next val)
+
+        Uniform a b -> do
+          val <- fmap (extractDouble name) (lift ask)
+          let score = log $ density (Statistics.uniformDistr a b) val
           modify $ Map.insert name score
           resolve (next val)
 

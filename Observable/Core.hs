@@ -38,15 +38,7 @@ data Distribution :: * -> * where
   Student     :: Double -> Double -> Distribution Double
   Gamma       :: Double -> Double -> Distribution Double
   InvGamma    :: Double -> Double -> Distribution Double
-
-instance Show a => Show (Distribution a) where
-  show (Beta a b)     = "Beta " <> show a <> " " <> show b
-  show (Binomial a b) = "Binomial " <> show a <> " " <> show b
-  show Standard       = "Standard"
-  show (Normal a b)   = "Normal " <> show a <> show b
-  show (Student a b)  = "Student " <> show a <> show b
-  show (Gamma a b)    = "Gamma " <> show a <> " " <> show b
-  show (InvGamma a b) = "InvGamma " <> show a <> " " <> show b
+  Uniform     :: Double -> Double -> Distribution Double
 
 beta :: Double -> Double -> Distribution Double
 beta = Beta
@@ -68,6 +60,9 @@ gamma = Gamma
 
 invGamma :: Double -> Double -> Distribution Double
 invGamma = InvGamma
+
+uniform :: Double -> Double -> Distribution Double
+uniform = Uniform
 
 int :: Int -> Dynamic
 int = toDyn
