@@ -19,7 +19,7 @@ exampleBb = betaBinomial 10 1 8
 -- -- | Example scores for the exampleBb program.
 example :: Environment Double
 example = logPosterior vs exampleBb where
-  vs = parameters [("p", double 0.1), ("x", int 8)]
+  vs = parameters [("p", continuous 0.1), ("x", discrete 8)]
 
 -- | An example Bayesian linear regression model.
 linearFit :: Double -> Double -> [Double] -> Observable [Double]

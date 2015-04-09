@@ -5,12 +5,9 @@
 module Observable.Core where
 
 import Control.Monad.Free
-import Data.Dynamic
 import Data.Map (Map)
 
 type Environment a = Map String a
-
-type Parameters = Environment Dynamic
 
 -- | @Observable@ terms.
 data ObservableF :: * -> * where
@@ -47,7 +44,7 @@ instance Show (Distribution a) where
   show InvGamma {} = "InvGamma _ _"
   show Uniform {}  = "Uniform _ _"
 
--- distribution constructor aliases
+-- distribution constructors
 
 beta :: Double -> Double -> Distribution Double
 beta = Beta
@@ -73,14 +70,24 @@ invGamma = InvGamma
 uniform :: Double -> Double -> Distribution Double
 uniform = Uniform
 
--- toDyn aliases
+-- | Parameter type.
+data Parameter =
+    Continuous Double
+  | Discrete Int
+  | Vector [Double]
+  deriving (Show, Eq)
 
-int :: Int -> Dynamic
-int = toDyn
+type Parameters = Environment Parameter
 
-double :: Double -> Dynamic
-double = toDyn
+-- parameter constructors
 
-vector :: (Num a, Typeable a) => [a] -> Dynamic
-vector = toDyn
+discrete :: Int -> Parameter
+discrete = Discrete
+
+continuous :: Double -> Parameter
+continuous = Continuous
+
+vector :: [Double] -> Parameter
+vector = Vector
+
 

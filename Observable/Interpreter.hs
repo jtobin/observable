@@ -9,7 +9,6 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Primitive
-import Data.Dynamic
 import Data.Functor.Identity
 import qualified Data.Map as Map
 import Data.Monoid
@@ -69,19 +68,19 @@ simulate expr = sample (eval expr) where
 -- | Forward-mode measure interpreter.  Produces a measure according to the
 --   joint distribution, but only returns the leaf node of the graph.
 forwardMeasure :: Observable a -> Measure a
-forwardMeasure = measure where
-  measure :: Observable a -> Measure a
-  measure (Pure r) = return r
-  measure (Free e) = case e of
-    Observe _ dist next -> let continue = measure . next in case dist of
-      Binomial n p   -> continue =<< Measurable.binomial n p
-      Beta a b       -> continue =<< Measurable.beta a b
-      Gamma a b      -> continue =<< Measurable.gamma a b
-      InvGamma a b   -> continue =<< fromDensityFunction (invGammaDensity a b)
-      Standard       -> continue =<< Measurable.standard
-      Normal a b     -> continue =<< Measurable.normal a b
-      Student m k    -> continue =<< fromDensityFunction (tDensity m 1 k)
-      Uniform a b    -> continue =<< fromDensityFunction (uniformDensity a b)
+forwardMeasure = eval where
+  eval :: Observable a -> Measure a
+  eval (Pure r) = return r
+  eval (Free e) = case e of
+    Observe _ dist next -> case dist of
+      Binomial n p -> eval . next =<< Measurable.binomial n p
+      Beta a b     -> eval . next =<< Measurable.beta a b
+      Gamma a b    -> eval . next =<< Measurable.gamma a b
+      InvGamma a b -> eval . next =<< fromDensityFunction (invGammaDensity a b)
+      Standard     -> eval . next =<< Measurable.standard
+      Normal a b   -> eval . next =<< Measurable.normal a b
+      Student m k  -> eval . next =<< fromDensityFunction (tDensity m 1 k)
+      Uniform a b  -> eval . next =<< fromDensityFunction (uniformDensity a b)
 
 -- | A log posterior score interpreter.  Returns values proportional to the
 --   log-posterior probabilities associated with each parameter and
@@ -169,7 +168,7 @@ logPosterior ps =
 condition
   :: Observable a
   -> Parameters
-  -> Environment Dynamic
+  -> Parameters
   -> Environment Double
 condition prog xs ps = logPosterior (ps <> xs) prog
 

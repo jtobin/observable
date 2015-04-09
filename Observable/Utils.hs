@@ -12,26 +12,26 @@ import Numeric.SpecFunctions
 extractInt :: String -> Parameters -> Int
 extractInt name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case fromDynamic v of
-    Just j -> j
-    _      -> error $
-      "expected Integer for parameter '" <> name <> "', got: " <> show v
+  Just v  -> case v of
+    Discrete j -> j
+    _ -> error $
+      "expected discrete parameter " <> name <> "', got: " <> show v
 
 extractDouble :: String -> Parameters -> Double
 extractDouble name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case fromDynamic v of
-    Just j -> j
-    _      -> error $
-      "expected Double for parameter '" <> name <> "', got: " <> show v
+  Just v  -> case v of
+    Continuous j -> j
+    _ -> error $
+      "expected continuous parameter '" <> name <> "', got: " <> show v
 
-extractVec :: (Num a, Typeable a) => String -> Parameters -> [a]
+extractVec :: String -> Parameters -> [Double]
 extractVec name store = case Map.lookup name store of
   Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case fromDynamic v of
-    Just j -> j
+  Just v  -> case v of
+    Vector vec -> vec
     _ -> error $
-      "expected Vector for parameter '" <> name <> "', got: " <> show v
+      "expected vector parameter '" <> name <> "', got: " <> show v
 
 grabDouble :: String -> Dynamic -> Double
 grabDouble name v = case fromDynamic v of
@@ -60,7 +60,7 @@ uniformDensity a b x
   | otherwise      = 1 / (b - a)
 
 -- | Alias for Map.fromList.
-parameters :: [(String, Dynamic)] -> Parameters
+parameters :: [(String, Parameter)] -> Parameters
 parameters = Map.fromList
 
 -- | Feed a continuation a value at the appropriate type it's expecting.
