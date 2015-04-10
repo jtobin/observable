@@ -112,5 +112,6 @@ condition
   :: Observations
   -> Observable a
   -> Target
-condition xs prog = Target (\ps -> logPosterior (ps <> xs) prog) Nothing
+condition xs prog = createTargetWithoutGradient
+  (\ps -> logPosterior (ps <> xs) prog)
 

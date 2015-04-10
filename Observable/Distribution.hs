@@ -39,6 +39,53 @@ instance Show (Distribution a) where
   show Poisson {}            = "Poisson _"
   show Exponential {}        = "Exponential _"
 
+-- smart constructors
+
+beta :: Double -> Double -> Distribution Double
+beta = Beta
+
+binomial :: Int -> Double -> Distribution Int
+binomial = Binomial
+
+standard :: Distribution Double
+standard = Standard
+
+normal :: Double -> Double -> Distribution Double
+normal = Normal
+
+student :: Double -> Double -> Distribution Double
+student = Student
+
+gamma :: Double -> Double -> Distribution Double
+gamma = Gamma
+
+invGamma :: Double -> Double -> Distribution Double
+invGamma = InvGamma
+
+uniform :: Double -> Double -> Distribution Double
+uniform = Uniform
+
+dirichlet :: [Double] -> Distribution [Double]
+dirichlet = Dirichlet
+
+symmetricDirichlet :: Int -> Double -> Distribution [Double]
+symmetricDirichlet = SymmetricDirichlet
+
+categorical :: [Double] -> Distribution Int
+categorical = Categorical
+
+discreteUniform :: Int -> Distribution Int
+discreteUniform = DiscreteUniform
+
+isoGauss :: [Double] -> Double -> Distribution [Double]
+isoGauss = IsoGauss
+
+poisson :: Double -> Distribution Int
+poisson = Poisson
+
+exponential :: Double -> Distribution Double
+exponential = Exponential
+
 -- (possibly unnormalized) densities
 
 densityInvGamma :: Floating a => a -> a -> a -> a

@@ -3,6 +3,7 @@ module Observable.Examples where
 
 import Data.Traversable
 import Observable.Core
+import Observable.Distribution
 import Observable.Interpreter
 import Observable.Utils
 
