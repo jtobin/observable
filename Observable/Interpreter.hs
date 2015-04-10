@@ -15,17 +15,10 @@ import qualified Data.Map as Map
 import Data.Monoid
 import Measurable.Core
 import qualified Measurable.Measures as Measurable
-import Observable.Core hiding (
-    beta
-  , binomial
-  , gamma
-  , invGamma
-  , normal
-  , standard
-  , student
-  )
+import Observable.Core
+import Observable.Distribution
 import Observable.Utils
-import System.Random.MWC.Probability
+import System.Random.MWC.Probability as MWC
 
 -- | A pretty-printer.  Omits hyperparameter values and bound values at their
 --   call sites, and only shows the overall structure of the AST.
@@ -58,14 +51,21 @@ simulate expr = sample (eval expr) where
   eval (Pure r) = return r
   eval (Free e) = case e of
     Observe _ dist next -> case dist of
-      Binomial n p   -> eval . next =<< binomial n p
-      Beta a b       -> eval . next =<< beta a b
-      Gamma a b      -> eval . next =<< gamma a b
-      InvGamma a b   -> eval . next =<< inverseGamma a b
-      Standard       -> eval . next =<< standard
-      Normal a b     -> eval . next =<< normal a b
-      Student m k    -> eval . next =<< t m 1 k
-      Uniform a b    -> eval . next =<< uniformR (a, b)
+      Binomial n p           -> eval . next =<< MWC.binomial n p
+      Beta a b               -> eval . next =<< MWC.beta a b
+      Gamma a b              -> eval . next =<< MWC.gamma a b
+      InvGamma a b           -> eval . next =<< MWC.inverseGamma a b
+      Standard               -> eval . next =<< MWC.standard
+      Normal a b             -> eval . next =<< MWC.normal a b
+      Student m k            -> eval . next =<< MWC.t m 1 k
+      Uniform a b            -> eval . next =<< MWC.uniformR (a, b)
+      Dirichlet as           -> eval . next =<< MWC.dirichlet as
+      SymmetricDirichlet n a -> eval . next =<< MWC.symmetricDirichlet n a
+      DiscreteUniform n      -> eval . next =<< MWC.discreteUniform [0..pred n]
+      Categorical ps         -> eval . next =<< MWC.categorical ps
+      IsoGauss ms v          -> eval . next =<< MWC.isoGauss ms v
+      Poisson l              -> eval . next =<< MWC.poisson l
+      Exponential l          -> eval . next =<< MWC.exponential l
 
 -- | Forward-mode measure interpreter.  Produces a measure according to the
 --   joint distribution, but only returns the leaf node of the graph.
@@ -83,6 +83,7 @@ forwardMeasure = eval where
       Normal a b   -> eval . next =<< Measurable.normal a b
       Student m k  -> eval . next =<< fromDensityFunction (tDensity m 1 k)
       Uniform a b  -> eval . next =<< fromDensityFunction (uniformDensity a b)
+      d -> error $ "forwardMeasure: does not support distribution " <> show d
 
 -- | A log posterior score interpreter.
 logPosterior :: Parameters -> Observable a -> Double
