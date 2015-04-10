@@ -78,11 +78,8 @@ forwardMeasure = eval where
       Binomial n p -> eval . next =<< Measurable.binomial n p
       Beta a b     -> eval . next =<< Measurable.beta a b
       Gamma a b    -> eval . next =<< Measurable.gamma a b
-      InvGamma a b -> eval . next =<< fromDensityFunction (densityInvGamma a b)
       Standard     -> eval . next =<< Measurable.standard
       Normal a b   -> eval . next =<< Measurable.normal a b
-      Student m k  -> eval . next =<< fromDensityFunction (densityStudent m 1 k)
-      Uniform a b  -> eval . next =<< fromDensityFunction (densityUniform a b)
       d -> error $ "forwardMeasure: does not support distribution " <> show d
 
 -- | A log posterior score interpreter.

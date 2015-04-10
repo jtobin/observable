@@ -21,6 +21,9 @@ example :: Double
 example = logPosterior vs exampleBb where
   vs = parameters [("p", continuous 0.1), ("x", discrete 8)]
 
+posteriorBb :: Target
+posteriorBb = condition (parameters [("x", discrete 3)]) exampleBb
+
 -- | An example Bayesian linear regression model.
 linearFit :: Double -> Double -> [Double] -> Observable [Double]
 linearFit c d xs = do
