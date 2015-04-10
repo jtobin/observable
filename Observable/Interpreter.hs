@@ -109,10 +109,6 @@ logPosterior ps =
               Just x  -> x
         resolve (next val)
 
-
--- literally; transform the return value, delete any nodes that have
-
-
 -- | Condition a model on some data.
 --
 --   @
