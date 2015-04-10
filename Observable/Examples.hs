@@ -17,7 +17,7 @@ exampleBb :: Observable Int
 exampleBb = betaBinomial 10 1 8
 
 -- -- | Example scores for the exampleBb program.
-example :: Environment Double
+example :: Double
 example = logPosterior vs exampleBb where
   vs = parameters [("p", continuous 0.1), ("x", discrete 8)]
 

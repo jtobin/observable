@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Primitive
+import Data.Dynamic
 import Data.Functor.Identity
 import qualified Data.Map as Map
 import Data.Monoid
@@ -25,12 +26,6 @@ import Observable.Core hiding (
   )
 import Observable.Utils
 import System.Random.MWC.Probability
-import Statistics.Distribution
-import qualified Statistics.Distribution.Beta as Statistics
-import qualified Statistics.Distribution.Binomial as Statistics
-import qualified Statistics.Distribution.Gamma as Statistics
-import qualified Statistics.Distribution.Normal as Statistics
-import qualified Statistics.Distribution.Uniform as Statistics
 
 -- | A pretty-printer.  Omits hyperparameter values and bound values at their
 --   call sites, and only shows the overall structure of the AST.
@@ -43,6 +38,13 @@ ast (Free f) = case f of
           _      -> " "
     in  "(Observe " <> name <> " (" <> show dist <> ")" <> space
           <> ast (squash next dist) <> ")"
+
+-- | Returns nodes in the syntax tree, ordered from top to bottom.
+randomVariables :: Observable a -> [String]
+randomVariables = go [] where
+  go acc Pure {}  = reverse acc
+  go acc (Free f) = case f of
+    Observe name dist next -> go (name : acc) (squash next dist)
 
 -- | A forward-mode sampling interpreter.  Produces a sample from the joint
 --   distribution and returns it in IO.
@@ -82,12 +84,11 @@ forwardMeasure = eval where
       Student m k  -> eval . next =<< fromDensityFunction (tDensity m 1 k)
       Uniform a b  -> eval . next =<< fromDensityFunction (uniformDensity a b)
 
--- | A log posterior score interpreter.  Returns values proportional to the
---   log-posterior probabilities associated with each parameter and
---   observation.
-logPosterior :: Parameters -> Observable a -> Environment Double
+-- | A log posterior score interpreter.
+logPosterior :: Parameters -> Observable a -> Double
 logPosterior ps =
-      runIdentity
+      Map.foldl' (+) 0
+    . runIdentity
     . flip runReaderT ps
     . flip execStateT mempty
     . resolve
@@ -97,55 +98,20 @@ logPosterior ps =
       -> StateT (Environment Double) (ReaderT Parameters Identity) a
     resolve (Pure a) = return a
     resolve (Free e) = case e of
-      Observe name dist next -> case dist of
+      Observe name dist next -> do
+        provided <- fmap (Map.lookup name) (lift ask)
+        let (dynamic, paramScore) = case provided of
+             Nothing -> error "logPosterior: no value provided"
+             Just v  -> score v dist
+        modify $ Map.alter (add paramScore) name
+        let val = case fromDynamic dynamic of
+              Nothing -> error "couldn't cast value"
+              Just x  -> x
+        resolve (next val)
 
-        Binomial n p -> do
-          val <- fmap (extractInt name) (lift ask)
-          let score = log $ probability (Statistics.binomial n p) val
-          modify $ Map.alter (add score) name
-          resolve (next val)
 
-        Beta a b -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ density (Statistics.betaDistr a b) val
-          modify $ Map.alter (add score) name
-          resolve (next val)
+-- literally; transform the return value, delete any nodes that have
 
-        Gamma a b -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ density (Statistics.gammaDistr a b) val
-          modify $ Map.alter (add score) name
-          resolve (next val)
-
-        InvGamma a b -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ invGammaDensity a b val
-          modify $ Map.alter (add score) name
-          resolve (next val)
-
-        Normal a b -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ density (Statistics.normalDistr a b) val
-          modify $ Map.alter (add score) name
-          resolve (next val)
-
-        Student m k -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ tDensity m 1 k val
-          modify $ Map.alter (add score) name
-          resolve (next val)
-
-        Standard -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ density Statistics.standard val
-          modify $ Map.alter (add score) name
-          resolve (next val)
-
-        Uniform a b -> do
-          val <- fmap (extractDouble name) (lift ask)
-          let score = log $ density (Statistics.uniformDistr a b) val
-          modify $ Map.alter (add score) name
-          resolve (next val)
 
 -- | Condition a model on some data.
 --
@@ -160,15 +126,15 @@ logPosterior ps =
 --   @
 --
 --   >>> :t bbPosterior
---   bbPosterior :: Environment Lit -> Environment Double
+--   bbPosterior :: Environment Lit -> Environment
 --
 --   >>> bbPosterior (Map.fromList [("p", double 0.3)])
---   fromList [("p",0.385262399000244),("x",-1.3211512777668892)]
+--   -0.9358888787666453
 --
 condition
   :: Observable a
   -> Parameters
   -> Parameters
-  -> Environment Double
+  -> Double
 condition prog xs ps = logPosterior (ps <> xs) prog
 

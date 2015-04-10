@@ -6,12 +6,14 @@ module Observable.Core where
 
 import Control.Monad.Free
 import Data.Map (Map)
+import Data.Typeable
 
 type Environment a = Map String a
 
 -- | @Observable@ terms.
 data ObservableF :: * -> * where
-  Observe :: String -> Distribution a -> (a -> r) -> ObservableF r
+  Observe
+    :: Typeable a => String -> Distribution a -> (a -> r) -> ObservableF r
 
 instance Functor ObservableF where
   fmap f (Observe s d k) = Observe s d (f . k)
@@ -20,7 +22,7 @@ instance Functor ObservableF where
 type Observable = Free ObservableF
 
 -- | 'Observe' constructor.
-observe :: String -> Distribution a -> Observable a
+observe :: Typeable a => String -> Distribution a -> Observable a
 observe name dist = liftF (Observe name dist id)
 
 -- | Supported probability distributions.
@@ -90,4 +92,10 @@ continuous = Continuous
 vector :: [Double] -> Parameter
 vector = Vector
 
+-- result of conditioning a program
+
+data Target = Target {
+    logTarget :: Environment Parameter -> Double
+  , glTarget  :: Maybe (Environment Parameter -> Environment Parameter)
+  }
 

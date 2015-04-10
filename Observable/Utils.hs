@@ -8,35 +8,12 @@ import Data.Monoid
 import qualified Data.Map as Map
 import Observable.Core
 import Numeric.SpecFunctions
-
-extractInt :: String -> Parameters -> Int
-extractInt name store = case Map.lookup name store of
-  Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    Discrete j -> j
-    _ -> error $
-      "expected discrete parameter " <> name <> "', got: " <> show v
-
-extractDouble :: String -> Parameters -> Double
-extractDouble name store = case Map.lookup name store of
-  Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    Continuous j -> j
-    _ -> error $
-      "expected continuous parameter '" <> name <> "', got: " <> show v
-
-extractVec :: String -> Parameters -> [Double]
-extractVec name store = case Map.lookup name store of
-  Nothing -> error $ "parameter '" <> name <> "' not found"
-  Just v  -> case v of
-    Vector vec -> vec
-    _ -> error $
-      "expected vector parameter '" <> name <> "', got: " <> show v
-
-grabDouble :: String -> Dynamic -> Double
-grabDouble name v = case fromDynamic v of
-  Just j  -> j
-  Nothing -> error $ "expected Double for value inside '" <> name <> "'"
+import Statistics.Distribution hiding (Distribution)
+import qualified Statistics.Distribution.Beta as Statistics
+import qualified Statistics.Distribution.Binomial as Statistics
+import qualified Statistics.Distribution.Gamma as Statistics
+import qualified Statistics.Distribution.Normal as Statistics
+import qualified Statistics.Distribution.Uniform as Statistics
 
 -- | Inverse gamma density.
 invGammaDensity :: Double -> Double -> Double -> Double
@@ -78,4 +55,66 @@ squash f Uniform {}  = f 0
 add :: Num a => a -> Maybe a -> Maybe a
 add v Nothing    = Just v
 add v0 (Just v1) = Just (v0 + v1)
+
+-- | Score error helper.
+scoreError :: (Show a, Show b) => String -> b -> a -> e
+scoreError ptype dist value = error $
+    "expected "
+  <> ptype
+  <> " value while evaluating density for '"
+  <> show dist
+  <> "'; received '"
+  <> show value
+  <> "'"
+
+-- | Calculate a probability mass/density for a given distribution and provided
+--   parameter.
+score :: Parameter -> Distribution a -> (Dynamic, Double)
+score val dist@(Binomial n p) = case val of
+  Discrete j ->
+    let paramScore = log $ probability (Statistics.binomial n p) j
+    in (toDyn j, paramScore)
+  v -> scoreError "discrete" dist v
+
+score val dist@(Beta a b) = case val of
+  Continuous x ->
+    let paramScore = log $ density (Statistics.betaDistr a b) x
+    in (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@(Gamma a b) = case val of
+  Continuous x ->
+    let paramScore = log $ density (Statistics.gammaDistr a b) x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@(InvGamma a b) = case val of
+  Continuous x ->
+    let paramScore = log $ invGammaDensity a b x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@(Normal a b) = case val of
+  Continuous x ->
+    let paramScore = log $ density (Statistics.normalDistr a b) x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@(Student a b) = case val of
+  Continuous x ->
+    let paramScore = log $ tDensity a 1 b x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@Standard = case val of
+  Continuous x ->
+    let paramScore = log $ density Statistics.standard x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
+
+score val dist@(Uniform a b) = case val of
+  Continuous x ->
+    let paramScore = log $ density (Statistics.uniformDistr a b) x
+    in  (toDyn x, paramScore)
+  v -> scoreError "continuous" dist v
 
