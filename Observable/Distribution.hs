@@ -4,8 +4,6 @@
 
 module Observable.Distribution where
 
-import Numeric.SpecFunctions
-
 -- | Supported probability distributions.
 data Distribution :: * -> * where
   Beta               :: Double -> Double -> Distribution Double
@@ -40,27 +38,6 @@ instance Show (Distribution a) where
   show IsoGauss {}           = "IsoGauss _ _"
   show Poisson {}            = "Poisson _"
   show Exponential {}        = "Exponential _"
-
--- | Inverse gamma density.
-invGammaDensity :: Double -> Double -> Double -> Double
-invGammaDensity a b x =
-  b ** a / exp (logGamma a) * x ** (negate a - 1) * exp (negate b / x)
-
--- | Nonstandard t density.
-tDensity :: Double -> Double -> Double -> Double -> Double
-tDensity m s v x =
-    kfac * (1 + recip v * (x - m) ^ 2 / s) ** (negate (v + 1) / 2)
-  where
-    kfac = exp $
-        logGamma ((v + 1) / 2)
-      - logGamma (v / 2)
-      - 0.5 * (log pi + log v + log s)
-
--- | Uniform density function.
-uniformDensity :: Double -> Double -> Double -> Double
-uniformDensity a b x
-  | x < a || x > b = 0
-  | otherwise      = 1 / (b - a)
 
 -- (possibly unnormalized) densities
 

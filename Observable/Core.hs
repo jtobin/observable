@@ -29,10 +29,13 @@ observe name dist = liftF (Observe name dist id)
 data Parameter =
     Continuous Double
   | Discrete Int
-  | Vector [Double]
+  | ContinuousVector [Double]
+  | DiscreteVector [Int]
   deriving (Show, Eq)
 
 type Parameters = Environment Parameter
+
+type Observations = Environment Parameter
 
 -- parameter constructors
 
@@ -42,14 +45,17 @@ discrete = Discrete
 continuous :: Double -> Parameter
 continuous = Continuous
 
-vector :: [Double] -> Parameter
-vector = Vector
+continuousVector :: [Double] -> Parameter
+continuousVector = ContinuousVector
+
+discreteVector :: [Int] -> Parameter
+discreteVector = DiscreteVector
 
 -- result of conditioning a program
 
 data Target = Target {
-    logTarget :: Environment Parameter -> Double
-  , glTarget  :: Maybe (Environment Parameter -> Environment Parameter)
+    logTarget :: Parameters -> Double
+  , glTarget  :: Maybe (Parameters -> Parameters)
   }
 
 -- smart constructors for distributions

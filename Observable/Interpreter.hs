@@ -78,11 +78,11 @@ forwardMeasure = eval where
       Binomial n p -> eval . next =<< Measurable.binomial n p
       Beta a b     -> eval . next =<< Measurable.beta a b
       Gamma a b    -> eval . next =<< Measurable.gamma a b
-      InvGamma a b -> eval . next =<< fromDensityFunction (invGammaDensity a b)
+      InvGamma a b -> eval . next =<< fromDensityFunction (densityInvGamma a b)
       Standard     -> eval . next =<< Measurable.standard
       Normal a b   -> eval . next =<< Measurable.normal a b
-      Student m k  -> eval . next =<< fromDensityFunction (tDensity m 1 k)
-      Uniform a b  -> eval . next =<< fromDensityFunction (uniformDensity a b)
+      Student m k  -> eval . next =<< fromDensityFunction (densityStudent m 1 k)
+      Uniform a b  -> eval . next =<< fromDensityFunction (densityUniform a b)
       d -> error $ "forwardMeasure: does not support distribution " <> show d
 
 -- | A log posterior score interpreter.
@@ -110,28 +110,10 @@ logPosterior ps =
               Just x  -> x
         resolve (next val)
 
--- | Condition a model on some data.
---
---   @
---     bb = do
---       p <- observe "p" (beta 1 3)
---       observe "x" (binomial 10 p)
---
---     observation = Map.fromList [("x", int 3)]
---
---     bbPosterior = condition bb observation
---   @
---
---   >>> :t bbPosterior
---   bbPosterior :: Environment Lit -> Environment
---
---   >>> bbPosterior (Map.fromList [("p", double 0.3)])
---   -0.9358888787666453
---
+-- | Condition a model on some data, returning a 'Target'.
 condition
-  :: Observable a
-  -> Parameters
-  -> Parameters
-  -> Double
-condition prog xs ps = logPosterior (ps <> xs) prog
+  :: Observations
+  -> Observable a
+  -> Target
+condition xs prog = Target (\ps -> logPosterior (ps <> xs) prog) Nothing
 

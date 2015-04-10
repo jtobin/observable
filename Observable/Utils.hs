@@ -30,7 +30,6 @@ squash f IsoGauss {}           = f [0]
 squash f Poisson {}            = f 0
 squash f Exponential {}        = f 0
 
-
 -- | Add a value to a Maybe, treating Nothing as zero.
 add :: Num a => a -> Maybe a -> Maybe a
 add v Nothing    = Just v
@@ -99,13 +98,13 @@ score val dist@(Uniform a b) = case val of
   v -> scoreError "continuous" dist v
 
 score val dist@(Dirichlet as) = case val of
-  Vector xs ->
+  ContinuousVector xs ->
     let paramScore = log $ densityDirichlet as xs
     in  (toDyn xs, paramScore)
   v -> scoreError "vector" dist v
 
 score val dist@(SymmetricDirichlet _ a) = case val of
-  Vector xs ->
+  ContinuousVector xs ->
     let paramScore = log $ densitySymmetricDirichlet a xs
     in  (toDyn xs, paramScore)
   v -> scoreError "vector" dist v
@@ -123,7 +122,7 @@ score val dist@(DiscreteUniform n) = case val of
   v -> scoreError "discrete" dist v
 
 score val dist@(IsoGauss ms sd) = case val of
-  Vector xs ->
+  ContinuousVector xs ->
     let paramScore = log $ densityIsoGauss ms sd xs
     in  (toDyn xs, paramScore)
   v -> scoreError "vector" dist v
