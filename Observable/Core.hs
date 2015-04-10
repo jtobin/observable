@@ -78,3 +78,24 @@ invGamma = InvGamma
 uniform :: Double -> Double -> Distribution Double
 uniform = Uniform
 
+dirichlet :: [Double] -> Distribution [Double]
+dirichlet = Dirichlet
+
+symmetricDirichlet :: Int -> Double -> Distribution [Double]
+symmetricDirichlet = SymmetricDirichlet
+
+categorical :: [Double] -> Distribution Int
+categorical = Categorical
+
+discreteUniform :: Int -> Distribution Int
+discreteUniform = DiscreteUniform
+
+isoGauss :: [Double] -> Double -> Distribution [Double]
+isoGauss = IsoGauss
+
+poisson :: Double -> Distribution Int
+poisson = Poisson
+
+exponential :: Double -> Distribution Double
+exponential = Exponential
+
