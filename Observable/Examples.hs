@@ -39,8 +39,8 @@ sinusoidal obs = do
   a <- observe "intercept" (normal 0 10)
   b <- observe "slope" (normal 0 10)
   v <- observe "variance" (invGamma 1 2)
-  let model x = observe "y" (normal (a*cos x + b*sin x) (sqrt v))
-  for obs model
+  let model x =  a*cos x + b*sin x
+  observe "ys" (isoGauss (fmap model obs) (sqrt v))
 
 -- | The sinusoidal model prior, separated.
 prior :: Observable (Double, Double, Double)
@@ -53,8 +53,8 @@ prior = do
 -- | THe sinusoidal model likelihood, separated.
 likelihood :: [Double] -> (Double, Double, Double) -> Observable [Double]
 likelihood obs (a, b, v) = do
-  let model x = observe "y" (normal (a*cos x + b*sin x) (sqrt v))
-  for obs model
+  let model x = a*cos x + b*sin x
+  observe "ys" (isoGauss (fmap model obs) (sqrt v))
 
 -- | An alternative spec for the sinusoidal model.
 sinusoidalModel :: [Double] -> Observable [Double]

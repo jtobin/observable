@@ -12,6 +12,10 @@ import Observable.Distribution
 parameters :: [(String, Parameter)] -> Parameters
 parameters = Map.fromList
 
+-- | Alias for Map.fromList.
+observations :: [(String, Parameter)] -> Observations
+observations = Map.fromList
+
 -- | Feed a continuation a value at the appropriate type it's expecting.
 squash :: (a -> r) -> Distribution a -> r
 squash f Beta {}               = f 0
