@@ -21,7 +21,7 @@ library
     , Observable.Utils
   default-language:    Haskell2010
   build-depends:
-      base                >= 4.7 && < 4.8
+      base
     , containers
     , free
     , measurable          >= 1.0.0.1

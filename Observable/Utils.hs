@@ -143,5 +143,3 @@ score val dist@(Exponential l) = case val of
     in  (toDyn x, paramScore)
   v -> scoreError "continuous" dist v
 
-
-

@@ -1,0 +1,8 @@
+flags: {}
+packages:
+  - '.'
+  - ../measurable
+  - ../mcmc-types
+  - ../mwc-probability
+extra-deps: []
+resolver: lts-2.21

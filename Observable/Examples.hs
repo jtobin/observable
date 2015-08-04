@@ -31,7 +31,8 @@ linearFit c d xs = do
   a   <- observe "intercept" standard
   b   <- observe "slope" standard
   var <- observe "variance" (gamma c d)
-  for xs (\x -> observe "ys" (normal (a + b * x) var))
+  let model x = a + b * x
+  observe "ys" (isoGauss (fmap model xs) (sqrt var))
 
 -- | An example Bayesian sinusoidal regression model.
 sinusoidal :: [Double] -> Observable [Double]
@@ -50,7 +51,7 @@ prior = do
   v <- observe "variance" (invGamma 1 2)
   return (a, b, v)
 
--- | THe sinusoidal model likelihood, separated.
+-- | The sinusoidal model likelihood, separated.
 likelihood :: [Double] -> (Double, Double, Double) -> Observable [Double]
 likelihood obs (a, b, v) = do
   let model x = a*cos x + b*sin x
