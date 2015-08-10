@@ -5,18 +5,13 @@ module Observable.Core (
     module Data.Sampling.Types
   , ObservableF(..)
   , Observable
-  , Environment
   , observe
-  , beta
   ) where
 
-import Control.Monad.Free
-import Data.Map (Map)
+import Control.Monad.Free (Free, liftF)
 import Data.Sampling.Types
-import Data.Typeable
+import Data.Typeable (Typeable)
 import Observable.Distribution
-
-type Environment a = Map String a
 
 -- | @Observable@ terms.
 data ObservableF :: * -> * where

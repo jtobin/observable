@@ -2,11 +2,14 @@
 
 module Observable.Utils where
 
-import Data.Dynamic
-import Data.Monoid
-import qualified Data.Map as Map
+import Data.Dynamic (Dynamic, toDyn)
+import Data.Map (Map)
+import qualified Data.Map as Map (fromList)
+import Data.Monoid ((<>))
 import Observable.Core
 import Observable.Distribution
+
+type Environment a = Map String a
 
 -- | Alias for Map.fromList.
 parameters :: [(String, Parameter)] -> Parameters
