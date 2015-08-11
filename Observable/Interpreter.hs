@@ -3,17 +3,17 @@
 
 module Observable.Interpreter where
 
-import Control.Applicative
-import Control.Monad.Free
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State.Strict
-import Control.Monad.Primitive
-import Data.Dynamic
-import Data.Functor.Identity
-import qualified Data.Map as Map
-import Data.Monoid
-import Measurable.Core
+import Control.Applicative (Applicative)
+import Control.Monad.Free (Free(..))
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
+import Control.Monad.Trans.State.Strict (execStateT, StateT, modify)
+import Control.Monad.Primitive (PrimMonad, PrimState)
+import Data.Dynamic (fromDynamic)
+import Data.Functor.Identity (Identity, runIdentity)
+import qualified Data.Map as Map (alter, foldl', lookup)
+import Data.Monoid ((<>), mempty)
+import Measurable.Core (Measure)
 import qualified Measurable.Measures as Measurable
 import Observable.Core
 import Observable.Distribution

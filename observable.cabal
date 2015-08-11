@@ -16,7 +16,6 @@ library
       Observable
     , Observable.Core
     , Observable.Distribution
-    , Observable.Examples
     , Observable.Interpreter
     , Observable.Utils
   default-language:    Haskell2010
@@ -27,7 +26,6 @@ library
     , measurable          >= 1.0.0.1
     , mcmc-types          >= 0.1.0.3
     , mwc-probability     >= 0.3.3.0
-    , mwc-random
     , primitive
     , transformers
 
