@@ -2,12 +2,12 @@
 
 module Observable.Utils where
 
-import Data.Dynamic (Dynamic, toDyn)
+-- import Data.Dynamic (Dynamic, toDyn)
 import Data.Map (Map)
 import qualified Data.Map as Map (fromList)
 import Data.Monoid ((<>))
 import Observable.Core
-import Observable.Distribution
+-- import Observable.Distribution
 
 type Environment a = Map String a
 

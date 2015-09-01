@@ -5,4 +5,4 @@ packages:
   - ../mcmc-types
   - ../mwc-probability
 extra-deps: []
-resolver: lts-2.21
+resolver: lts-3.3

@@ -25,7 +25,7 @@ library
     , free
     , measurable          >= 1.0.0.1
     , mcmc-types          >= 0.1.0.3
-    , mwc-probability     >= 0.3.3.0
+    , mwc-probability     >= 0.3.4.0
     , primitive
     , transformers
 
