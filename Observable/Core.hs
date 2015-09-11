@@ -5,7 +5,6 @@ module Observable.Core (
   , ModelF(..)
   , Model
 
-  , Conditioned(..) -- FIXME i may want to keep the constructor private
   , condition
 
   -- * smart constructors
@@ -31,6 +30,7 @@ import Data.Sampling.Types
 
 -- | @Observable@ terms.
 data ModelF k =
+    -- * distributional terms
     BetaF Double Double (Double -> k)
   | BinomialF Int Double (Int -> k)
   | StandardF (Double -> k)
@@ -50,6 +50,14 @@ data ModelF k =
 
 -- | An @Observable@ program.
 type Model = Free ModelF
+
+-- | Condition a model on a value.
+condition :: a -> Model a -> Model a
+condition x = fmap (const x)
+
+-- NB. annoying metaprogramming exercise to get conditioning linked up to the
+-- appropriate nodes correctly.  could add the 'observe' and 'infer' terms
+-- to the language
 
 beta :: Double -> Double -> Model Double
 beta a b = liftF (BetaF a b id)
@@ -95,11 +103,4 @@ poisson l = liftF (PoissonF l id)
 
 exponential :: Double -> Model Double
 exponential l = liftF (ExponentialF l id)
-
--- | A conditioned model is one that returns a constant value.
-newtype Conditioned a = Conditioned (Model a)
-
--- | Condition a model on a value.
-condition :: a -> Model a -> Model a -- FIXME? -> Conditioned a
-condition x = fmap (const x)
 

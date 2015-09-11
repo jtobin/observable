@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Observable.Interpreter where
 
@@ -7,12 +9,12 @@ import Control.Monad.Primitive (PrimMonad, PrimState)
 import Measurable.Core (Measure)
 import qualified Measurable.Measures as Measurable
 import Observable.Core
-import System.Random.MWC.Probability as MWC
+import qualified System.Random.MWC.Probability as MWC
 
 -- | A forward-mode sampling interpreter.  Produces a sample from the
 --   model's predictive distribution and returns it in a monadic context.
-simulate :: PrimMonad m => Model a -> Gen (PrimState m) -> m a
-simulate = sample . iterM alg where
+simulate :: PrimMonad m => Model a -> MWC.Gen (PrimState m) -> m a
+simulate = MWC.sample . iterM alg where
   alg (BinomialF n p next)           = MWC.binomial n p >>= next
   alg (BetaF a b next)               = MWC.beta a b >>= next
   alg (GammaF a b next)              = MWC.gamma a b >>= next
@@ -41,6 +43,19 @@ measure = iterM alg where
   alg _ = error "measure: distribution not supported"
 
 
+grabVals
+  :: forall a m. (Typeable a, PrimMonad m)
+  => MWC.Gen (PrimState m) -> Model a -> StateT [Conditioned Dist] m ()
+grabVals gen = eval where
+  eval :: PrimMonad m => Model a -> StateT [Conditioned Dist] m ()
+  eval (Free (BetaF a b k)) = do
+    p <- lift $ MWC.sample (MWC.beta a b) gen
+    case fmap toDyn (k p) of
+      Pure r -> do
+        modify ((:) (C (Beta a b (fromJust $ fromDynamic r))))
+      Free f -> do
+        modify ((:) (U (Beta a b p)))
+        eval (k p)
 
 
 
@@ -48,96 +63,99 @@ measure = iterM alg where
 
 
 
-
-
-
-
-
-
-
-
--- so; goal here is to make a forward pass, cache the values for every node
--- so return of forward pass is a set of values at every node
--- then go backwards, calculate measure terms.
+-- at the crux i want to be able to perturb the 'perturbable' parts of the
+-- graph
 --
--- this is more or less what rob has done.
+-- so i have a graph of nodes, U or C x
 --
--- crux is to get samples first, then use those when going back.
+-- for every U i perturb its value, feed it forward through the graph as an
+-- input to C
 --
--- so the first thing then is to write an interpreter that grabs a sample but
--- preserves it.  i want to propagate it but also keep the individual samples
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- -- | A log posterior score interpreter.
--- logPosterior :: Parameters -> Model a -> Double
--- logPosterior ps =
---       Map.foldl' (+) 0
---     . runIdentity
---     . flip runReaderT ps
---     . flip execStateT mempty
---     . resolve
---   where
---     resolve
---       :: Model a
---       -> StateT (Environment Double) (ReaderT Parameters Identity) a
---     resolve (Pure a) = return a
---     resolve (Free e) = case e of
---       Observe name dist next -> do
---         provided <- fmap (Map.lookup name) (lift ask)
---         let (dynamic, paramScore) = case provided of
---              Nothing -> error "logPosterior: no value provided"
---              Just v  -> score v dist
---         modify $ Map.alter (add paramScore) name
---         let val = case fromDynamic dynamic of
---               Nothing -> error "couldn't cast value"
---               Just x  -> x
---         resolve (next val)
-
-collapse :: Model a -> Model a
-collapse = undefined
-
--- need to look at the structure and rewrite; not sure how to do this offhand
--- but seems to be very easy to do
+-- (p0, U (Beta a b))                     (p1, U (Beta a b))
+--       \                          ~           \
+--     (x, C x (Binomial n p0))               (x, C x (Binomial n p1))
 --
--- Free (BetaF a b (Free (BinomialF n p k)))
--- Free (BetaF (n + a + x)
+-- let p0 = U (Beta a b)
+-- in  (x, C x (Binomial n p0))
+--
+-- make proposals over execution traces
+--   but here i don't want to consider them as the program executes, eh.  i
+--   just want to look at the nodes and propose global changes.
+--
+--   some of the inputs will go into the conditioned distribution but that's
+--   ok.  i just want to make general proposals over them.
+--
+--   so: look at program.  i could
+--
+--   have program, collect unconditioned nodes
+--
+--
+--
+-- log (betaDensity a b p0) + log (binomialDensity n p0 x)
 --
 
+data Dist =
+    Beta Double Double Double Dist
+  | Binomial Int Double Int Dist
+  | Dirac
+  deriving Show
+
+data Conditioned a = C a | U a deriving Show
+
+fromJust (Just x) = x
+
+eval = go where
+  go (Beta a b d) =
+    let x = eval (Beta a b)
+    in
 
 
 
--- | A pretty-printer.  Omits hyperparameter values and bound values at their
---   call sites, and only shows the overall structure of the AST.
--- ast :: Show a => Observable a -> String
--- ast Pure {}  = ""
--- ast (Free f) = case f of
---   Observe name dist next ->
---     let space = case squash next dist of
---           Pure _ -> ""
---           _      -> " "
---     in  "(Observe " <> name <> " (" <> show dist <> ")" <> space
---           <> ast (squash next dist) <> ")"
 
--- -- | Returns nodes in the syntax tree, ordered from top to bottom.
--- randomVariables :: Observable a -> [String]
--- randomVariables = go [] where
---   go acc Pure {}  = reverse acc
---   go acc (Free f) = case f of
---     Observe name dist next -> go (name : acc) (squash next dist)
 
+
+
+
+-- import Control.Monad.Free (Free(..))
+-- import Control.Monad.Trans.Class (lift)
+-- import Control.Monad.Trans.State.Strict (modify, StateT)
+-- import Data.Dynamic
+--
+-- grabVals
+--   :: forall a m. (Typeable a, PrimMonad m)
+--   => MWC.Gen (PrimState m) -> Model a -> StateT [Conditioned Dist] m ()
+-- grabVals gen = eval where
+--   eval :: PrimMonad m => Model a -> StateT [Conditioned Dist] m ()
+--   eval (Free (BetaF a b k)) = do
+--     p <- lift $ MWC.sample (MWC.beta a b) gen
+--     case fmap toDyn (k p) of
+--       Pure r -> do
+--         modify ((:) (C (Beta a b (fromJust $ fromDynamic r))))
+--       Free f -> do
+--         modify ((:) (U (Beta a b p)))
+--         eval (k p)
+--
+--   eval (Free (BinomialF n p k)) = do
+--     x <- lift $ MWC.sample (MWC.binomial n p) gen
+--     case fmap toDyn (k x) of
+--       Pure r -> do
+--         modify ((:) (C (Binomial n p (fromJust $ fromDynamic r))))
+--       Free f -> do
+--         modify ((:) (U (Binomial n p x)))
+--         eval (k x)
+--
+--   eval (Pure _) = return ()
+
+-- this is not sufficient; i lose the ability to perturb things and have those
+-- perturbations propagated appropriately.
+--
+-- i would be really golden if i could reify this fucking thing as a graph!
+--
+-- what if i could compile a program to a PHOAS structure?  then reify that
+-- appropriately?  much much easier to work with.
+--
+-- in fact i don't even need to do sampling then.  just work with the graph,
+-- perturb it as necessary..
 
 
 

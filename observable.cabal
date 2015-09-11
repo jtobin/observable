@@ -28,4 +28,5 @@ library
     , mwc-probability     >= 0.3.4.0
     , primitive
     , transformers
+    , wl-pprint-text
 
