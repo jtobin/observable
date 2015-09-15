@@ -191,7 +191,7 @@ testo = go where
   go (s :< f) = case f of
     BetaF _ _ k -> s : go (k 0)
     BinomialF _ _ k -> s : go (k 0)
-    ConditionF -> []
+    ConditionF -> [s]
 
 data Parameter = forall a. Show a => Parameter a
 

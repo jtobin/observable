@@ -11,6 +11,9 @@ module Observable.Core (
   , Node(..)
   , condition
 
+  , sizes -- DEBUG
+  , affix
+
   -- * smart constructors
   , beta
   , binomial
@@ -35,6 +38,8 @@ import Control.Monad.Free (Free(..), liftF)
 import Data.Functor.Foldable (cata, Fix(..))
 import Data.Void (Void, absurd)
 import Data.Sampling.Types
+
+import Debug.Trace
 
 -- | @Observable@ terms.
 data ModelF k =
@@ -115,10 +120,10 @@ condition :: a -> Model a -> Conditioned a
 condition x model = annotate sized where
   fixed  = affix (model >> liftF ConditionF)
   sized  = sizes fixed
-  annotate c = case extract c of
-    0 -> c =>> const Closed
-    1 -> c =>> const (Conditioned x)
-    _ -> c =>> const Unconditioned
+  annotate (a :< f) = case a of
+    0 -> Closed :< fmap annotate f
+    1 -> Conditioned x :< fmap annotate f
+    _ -> Unconditioned :< fmap annotate f
 
 -- | Bottom-up annotation.
 synth :: Functor f => (f a -> a) -> Fix f -> Cofree f a

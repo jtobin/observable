@@ -3,7 +3,7 @@ module Observable (
     module OModule
   ) where
 
-import Observable.Core as OModule
+import Observable.Core as OModule -- FIXME hide ModelF constructors
 -- import Observable.Distribution as OModule (
 --     beta
 --   , binomial
