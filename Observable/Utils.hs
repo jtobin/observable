@@ -3,37 +3,43 @@
 module Observable.Utils where
 
 -- import Data.Dynamic (Dynamic, toDyn)
-import Data.Map (Map)
-import qualified Data.Map as Map (fromList)
-import Data.Monoid ((<>))
-import Observable.Core
+-- import Data.Map (Map)
+-- import qualified Data.Map as Map (fromList)
+-- import Data.Monoid ((<>))
 -- import Observable.Distribution
 
-type Environment a = Map String a
+import Control.Comonad (extract, (=>>))
+import Control.Comonad.Cofree (Cofree(..))
+import Control.Monad.Free (Free(..))
+import Data.Functor.Foldable (cata, Fix(..))
+import Data.Void (Void, absurd)
+import Observable.Core
 
--- | Alias for Map.fromList.
-parameters :: [(String, Parameter)] -> Parameters
-parameters = Map.fromList
-
--- | Alias for Map.fromList.
-observations :: [(String, Parameter)] -> Observations
-observations = Map.fromList
-
--- | Add a value to a Maybe, treating Nothing as zero.
-add :: Num a => a -> Maybe a -> Maybe a
-add v Nothing    = Just v
-add v0 (Just v1) = Just (v0 + v1)
-
--- | Score error helper.
-scoreError :: (Show a, Show b) => String -> b -> a -> e
-scoreError ptype dist value = error $
-    "expected "
-  <> ptype
-  <> " value while evaluating density for '"
-  <> show dist
-  <> "'; received '"
-  <> show value
-  <> "'"
+-- type Environment a = Map String a
+--
+-- -- | Alias for Map.fromList.
+-- parameters :: [(String, Parameter)] -> Parameters
+-- parameters = Map.fromList
+--
+-- -- | Alias for Map.fromList.
+-- observations :: [(String, Parameter)] -> Observations
+-- observations = Map.fromList
+--
+-- -- | Add a value to a Maybe, treating Nothing as zero.
+-- add :: Num a => a -> Maybe a -> Maybe a
+-- add v Nothing    = Just v
+-- add v0 (Just v1) = Just (v0 + v1)
+--
+-- -- | Score error helper.
+-- scoreError :: (Show a, Show b) => String -> b -> a -> e
+-- scoreError ptype dist value = error $
+--     "expected "
+--   <> ptype
+--   <> " value while evaluating density for '"
+--   <> show dist
+--   <> "'; received '"
+--   <> show value
+--   <> "'"
 
 -- | Calculate a probability mass/density for a given distribution and provided
 --   parameter.

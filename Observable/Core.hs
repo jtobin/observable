@@ -1,10 +1,14 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Observable.Core (
     module Data.Sampling.Types
-  , ModelF(..)
+
+  , ModelF(..) -- FIXME don't want to export ConditionF
   , Model
 
+  , Conditioned
+  , Node(..)
   , condition
 
   -- * smart constructors
@@ -25,7 +29,11 @@ module Observable.Core (
   , exponential
   ) where
 
-import Control.Monad.Free (Free, liftF)
+import Control.Comonad (extract, (=>>))
+import Control.Comonad.Cofree (Cofree(..))
+import Control.Monad.Free (Free(..), liftF)
+import Data.Functor.Foldable (cata, Fix(..))
+import Data.Void (Void, absurd)
 import Data.Sampling.Types
 
 -- | @Observable@ terms.
@@ -46,18 +54,11 @@ data ModelF k =
   | IsoGaussF [Double] Double ([Double] -> k)
   | PoissonF Double (Int -> k)
   | ExponentialF Double (Double -> k)
+  | ConditionF
   deriving Functor
 
 -- | An @Observable@ program.
 type Model = Free ModelF
-
--- | Condition a model on a value.
-condition :: a -> Model a -> Model a
-condition x = fmap (const x)
-
--- NB. annoying metaprogramming exercise to get conditioning linked up to the
--- appropriate nodes correctly.  could add the 'observe' and 'infer' terms
--- to the language
 
 beta :: Double -> Double -> Model Double
 beta a b = liftF (BetaF a b id)
@@ -103,4 +104,50 @@ poisson l = liftF (PoissonF l id)
 
 exponential :: Double -> Model Double
 exponential l = liftF (ExponentialF l id)
+
+-- | Status of a node.
+data Node a = Unconditioned | Conditioned a | Closed deriving Show
+
+-- | A Conditioned model is annotated with conditioned/unconditioned status.
+type Conditioned a = Cofree ModelF (Node a)
+
+condition :: a -> Model a -> Conditioned a
+condition x model = annotate sized where
+  fixed  = affix (model >> liftF ConditionF)
+  sized  = sizes fixed
+  annotate c = case extract c of
+    0 -> c =>> const Closed
+    1 -> c =>> const (Conditioned x)
+    _ -> c =>> const Unconditioned
+
+-- | Bottom-up annotation.
+synth :: Functor f => (f a -> a) -> Fix f -> Cofree f a
+synth f = cata alg where
+  alg g = f (fmap extract g) :< g
+
+-- | Convert a Free f to a Fix f.
+affix :: Functor f => Free f Void -> Fix f
+affix = toFix where
+  toFix (Free f) = Fix (fmap toFix f)
+  toFix (Pure r) = absurd r
+
+-- | Annotate a fixed model with heights.
+sizes :: Fix ModelF -> Cofree ModelF Int
+sizes = synth alg where
+  alg (BetaF _ _ k)               = succ (k 0)
+  alg (BinomialF _ _ k)           = succ (k 0)
+  alg (StandardF k)               = succ (k 0)
+  alg (NormalF _ _ k)             = succ (k 0)
+  alg (StudentF _ _ k)            = succ (k 0)
+  alg (GammaF _ _ k)              = succ (k 0)
+  alg (InvGammaF _ _ k)           = succ (k 0)
+  alg (UniformF _ _ k)            = succ (k 0)
+  alg (DirichletF _ k)            = succ (k [])
+  alg (SymmetricDirichletF _ _ k) = succ (k [])
+  alg (CategoricalF _ k)          = succ (k 0)
+  alg (DiscreteUniformF _ k)      = succ (k 0)
+  alg (IsoGaussF _ _ k)           = succ (k [])
+  alg (PoissonF _ k)              = succ (k 0)
+  alg (ExponentialF _ k)          = succ (k 0)
+  alg ConditionF                  = 0
 

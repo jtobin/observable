@@ -1,5 +1,5 @@
 
-module Observable.Interpreter where
+module Observable.Measure where
 
 import Control.Monad.Free (iterM)
 import Measurable.Core (Measure)
