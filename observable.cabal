@@ -16,7 +16,8 @@ library
       Observable
     , Observable.Core
     , Observable.Distribution
-    , Observable.Interpreter
+    , Observable.Measure
+    , Observable.Metropolis
     , Observable.Simulate
     , Observable.Utils
   default-language:    Haskell2010

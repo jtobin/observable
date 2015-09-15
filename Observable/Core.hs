@@ -11,9 +11,6 @@ module Observable.Core (
   , Node(..)
   , condition
 
-  , sizes -- DEBUG
-  , affix
-
   -- * smart constructors
   , beta
   , binomial
