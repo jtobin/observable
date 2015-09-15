@@ -33,7 +33,12 @@ data Chain a = Chain {
   , chainExecution :: Execution a
   }
 
-type MarkovChain a = StateT (Chain a) Identity [Dynamic]
+type MarkovChain m a = StateT (Chain a) m [Dynamic]
+
+-- transition = do
+--   Chain s e <- get
+--   proposal  <- lift perturbExecution
+
 
 -- | Initialize a Markov chain over conditional program executions.
 initializeExecution
@@ -109,10 +114,7 @@ scoreExecution = go where
     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
     ConditionF      -> s
 
--- | Unsafely sample from a distribution.
-unsafeSample :: Prob IO a -> a
-unsafeSample = unsafePerformIO . withSystemRandom . asGenIO . Prob.sample
-
+proposalProbability :: Double -> Execution a -> Execution a -> Double
 proposalProbability s = go where
   go :: Execution a -> Execution a -> Double
   go ((_, z0, _) :< f) ((_, z1, _) :< _) = case f of
@@ -120,17 +122,11 @@ proposalProbability s = go where
       let (u0, u1) = (unsafeFromDyn z0 :: Double, unsafeFromDyn z1 :: Double)
       in  log (densityNormal u0 u1 s) + go (k u0) (k u1)
 
-    BinomialF _ _ k     ->
+    BinomialF _ _ k ->
       let (u0, u1) = (unsafeFromDyn z0 :: Int, unsafeFromDyn z1 :: Int)
       in  log (1 / 3) + go (k u0) (k u1)
 
     ConditionF -> 0
-
---     BetaF _ _ k     -> s + go (k (unsafeFromDyn a))
---     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
---     StandardF k     -> s + go (k (unsafeFromDyn a))
---     NormalF _ _ k   -> s + go (k (unsafeFromDyn a))
---     ConditionF      -> s
 
 unsafeFromDyn :: Typeable a => Dynamic -> a
 unsafeFromDyn = fromJust . fromDynamic
