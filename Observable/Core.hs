@@ -39,7 +39,7 @@ import Data.Functor.Foldable (cata, Fix(..))
 import Data.Void (Void, absurd)
 import Data.Sampling.Types
 
-import Debug.Trace
+import Data.Distributive
 
 -- | @Observable@ terms.
 data ModelF k =
@@ -61,6 +61,8 @@ data ModelF k =
   | ExponentialF Double (Double -> k)
   | ConditionF
   deriving Functor
+
+instance Distributive ModelF
 
 -- | An @Observable@ program.
 type Model = Free ModelF
