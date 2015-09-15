@@ -32,24 +32,8 @@ import Unsafe.Coerce
 import Debug.Trace
 import Data.Distributive
 
+import System.IO.Unsafe (unsafePerformIO)
 
-class (Functor f, Functor g) => Pairing f g where
-  pair :: (a -> b -> r) -> f a -> g b -> r
-
-instance Pairing f g => Pairing (Cofree f) (Free g) where
-  pair p (a :< _ ) (Pure x)  = p a x
-  pair p (_ :< fs) (Free gs) = pair (pair p) fs gs
-
-pairEffect :: (Pairing f g, Comonad w, Monad m)
-           => (a -> b -> r) -> CofreeT f w (m a) -> FreeT g m b -> m r
-pairEffect p s c = do
-  a  <- extract s
-  mb <- runFreeT c
-  case mb of
-    Free.Pure x  -> return $ p a x
-    Free.Free gs -> pair (pairEffect p) (unwrap s) gs
-
-instance (Monad m) => Distributive (Prob m)
 
 
 printTop :: Show a => Cofree f a -> IO ()
@@ -70,13 +54,15 @@ data Chain a = Chain {
 
 type Transition m a = StateT (Chain a) (Prob m) [Parameter]
 
-metropolis :: PrimMonad m => Int -> Double -> Chain a -> Prob m [[Parameter]]
+metropolis
+  :: (Typeable a, PrimMonad m)
+  => Int -> Double -> Chain a -> Prob m [[Parameter]]
 metropolis n step = evalStateT (replicateM n (transition step))
 
-transition :: PrimMonad m => Double -> Transition m a
+transition :: Typeable a => PrimMonad m => Double -> Transition m a
 transition step = do
   currentState@(Chain currentScore current) <- get
-  proposal <- lift (perturbExecution step current)
+  let proposal = perturbExecution step current
 
   let proposalScore     = scoreExecution proposal
       currentToProposal = transitionProbability step current proposal
@@ -96,13 +82,12 @@ transition step = do
   else return (collectPositions current)
 
 initializeChain
-  :: (Typeable a, PrimMonad m, Show a)
+  :: Typeable a
   => Conditioned a
-  -> Prob m (Chain a)
-initializeChain prog = undefined -- do
---  initd <- initializeExecution prog
---  let score = scoreExecution initd
---  return $ Chain score initd
+  -> Chain a
+initializeChain prog = Chain score initd where
+  initd = initializeExecution prog
+  score = scoreExecution initd
 
 -- -- | Initialize a Markov chain over conditional program executions.
 -- initializeExecution
@@ -135,140 +120,49 @@ initializeChain prog = undefined -- do
 --   goPure _ = error "goPure: unexpected unconditioned node"
 
 initializeExecution
-  :: forall m a. (PrimMonad m, Typeable a)
+  :: Typeable a
   => Conditioned a
-  -> Cofree ModelF (Prob m (Node a, Dynamic, Double))
-initializeExecution = extend execute
+  -> Cofree ModelF (Node a, Dynamic, Double)
+initializeExecution = extend initialize
 
-
-  -- execute                     :: w a -> m b
-  -- extend execute              :: w a -> w (m b)
-  -- distribute (extend execute) :: w a -> m (w b), but locks up
-  --
-  -- w a -> w (m b)
-  --
-  -- Applicative m => (a -> m b) -> m (a -> b)
-  -- desirable
-  -- Prob m (w a -> b) -> Prob m (w a) -> Prob m (w b)
-  --
-  -- how to go
-  -- w (m a) -> m (w a)       distribute
-  --
-  -- Cofree ModelF (Prob m Ann) -> Prob m (Cofree ModelF Ann)
-  --
-  -- coreturn:  w (m a) -> m a
-  -- m a -> m (w a)
-
-  -- f :: w a -> m b
-  -- flip (>>=) f :: (w a -> m b) -> m (w a) -> m b
-  -- extend f     :: (w a -> m b) -> w a -> w (m b)
-execute
-  :: (Typeable a, PrimMonad m)
+initialize
+  :: Typeable a
   => Conditioned a
-  -> Prob m (Node a, Dynamic, Double)
-execute w = do
-  let (ann, etc) = (extract w, unwrap w)
-  z <- case ann of
+  -> (Node a, Dynamic, Double)
+initialize w = (ann, z, scoreNode z etc) where
+  (ann, etc) = (extract w, unwrap w)
+  z = case ann of
     Unconditioned -> case etc of
-      BetaF a b _     -> fmap toDyn (Prob.beta a b)
-      BinomialF n p _ -> fmap toDyn (Prob.binomial n p)
-    Conditioned c -> return $ toDyn c
-    Closed        -> return $ toDyn ()
-  return (ann, z, scoreNode z etc)
+      BetaF a b _     -> toDyn (unsafeWithGen $ Prob.sample (Prob.beta a b))
+      BinomialF n p _ -> toDyn (unsafeWithGen $ Prob.sample (Prob.binomial n p))
+    Conditioned c -> toDyn c
+    Closed        -> toDyn ()
 
-
-
-  --cobinder :: Conditioned a -> Prob m (Execution a)
-  --cobinder w = do
-  --  let (ann, etc) = (extract w, unwrap w)
-  --  z <- case ann of
-  --         Unconditioned -> case etc of
-  --           BetaF a b _     -> fmap toDyn (Prob.beta a b)
-  --           BinomialF n p _ -> fmap toDyn (Prob.binomial n p)
-  --         Conditioned c -> return $ toDyn c
-  --         Closed        -> return $ toDyn ()
-  --  return $ w =>> const (ann, z, scoreNode z etc)
-
-
-
--- term =>> \w ->
---     let ann = extract w
---         etc = unwrap w
---     in case ann of
---          Unconditioned -> case etc of
---            BetaF a b k -> do
---              z <- Prob.beta a b
---              let dyn = toDyn z
---              return (ann, dyn, scoreNode dyn etc)
-
-    -- BetaF a b k -> do
-    --   z <- Prob.beta a b
-    --   let dyn = toDyn z
-    --   return $ term =>> \w -> (extract w, dyn, scoreNode dyn f)
-
---    BinomialF n p k -> do
---      z <- Prob.binomial n p
---      let dyn = toDyn z
---      return $ term =>> \w -> (extract term, dyn, scoreNode dyn f)
-
---  extend f w = f w :< fmap (extend f) (unwrap w)
-
-
-
-  --   BinomialF n p k -> do
-  --     z <- Prob.binomial n p
-  --     let dyn = toDyn z
-  --     rest <- fmap unwrap (go (k z))
-  --     return $ (extract term, dyn, scoreNode dyn f) :< rest
-
-  -- go term = return $ goPure term
-
-  -- goPure t@(Conditioned a :< f) =
-  --   let dyn = toDyn a
-  --   in  (extract t, dyn, scoreNode dyn f) :< fmap goPure f
-
-  -- goPure t@(Closed :< f) = (extract t, toDyn (), 0) :< fmap goPure f
-
-  -- goPure _ = error "goPure: unexpected unconditioned node"
-
-perturbExecution
-  :: forall a m. PrimMonad m
+perturb
+  :: Typeable a
   => Double
   -> Execution a
-  -> Prob m (Execution a)
-perturbExecution s = go where
-  go :: Execution a -> Prob m (Execution a)
-  go term@((node@Unconditioned, z, _) :< f) = case f of
-    BetaF _ _ k -> do
-      p    <- perturbNode z s
-      rest <- fmap unwrap (go (k 0))
-      return $ (node, p, scoreNode p f) :< rest
+  -> (Node a, Dynamic, Double)
+perturb step w = (ann, z1, scoreNode z1 etc) where
+  ((ann, z0, p0), etc) = (extract w, unwrap w)
+  u  = unsafeWithGen (Prob.sample (Prob.normal 0 step))
+  d  = unsafeWithGen (Prob.sample (Prob.uniformR (-1, 1 :: Int)))
+  z1 = case ann of
+    Unconditioned -> case etc of
+      BetaF a b _     -> toDyn (unsafeFromDyn z0 + u)
+      BinomialF n p _ -> toDyn (unsafeFromDyn z0 + u)
+    Conditioned c -> toDyn c
+    Closed        -> toDyn ()
 
-    BinomialF _ _ k -> do
-      p    <- perturbNode z s
-      rest <- fmap unwrap (go (k 0))
-      return $ (node, p, scoreNode p f) :< rest
+perturbExecution
+  :: Typeable a
+  => Double
+  -> Execution a
+  -> Execution a
+perturbExecution step = extend (perturb step)
 
-  go ((node@Conditioned {}, z, _) :< f) =
-    return $ (node, z, scoreNode z f) :< f
+unsafeWithGen = unsafePerformIO . withSystemRandom . asGenIO
 
-  go ((Closed, _, _) :< f) =
-    return $ (Closed, toDyn (), 0) :< f
-
-perturbNode
-  :: PrimMonad m
-  => Dynamic
-  -> Double
-  -> Prob m Dynamic
-perturbNode z s
-  | dynTypeRep z == typeOf (0 :: Int) = do
-      u <- Prob.uniformR (-1, 1 :: Int)
-      return . toDyn $ unsafeFromDyn z + u
-  | dynTypeRep z == typeOf (0 :: Double) = do
-      u <- Prob.normal 0 s
-      return . toDyn $ unsafeFromDyn z + u
-  | otherwise = error $
-      "perturbNode: unsupported type, " ++ show (dynTypeRep z)
 
 -- | Calculate a probability mass/density for a given distribution and provided
 --   parameter.
@@ -311,10 +205,6 @@ collectPositions = go where
     BinomialF _ _ k -> toParameter a : go (k (unsafeFromDyn a))
     ConditionF      -> []
 
-  go ((Conditioned c, a, _) :< f) = case f of
-    BetaF _ _ k     -> toParameter a : go (k (unsafeFromDyn a))
-    BinomialF _ _ k -> toParameter a : go (k (unsafeFromDyn a))
-
   go _ = []
 
 unsafeFromDyn :: Typeable a => Dynamic -> a
@@ -333,10 +223,10 @@ nodesStatus = go where
     ConditionF -> []
 
 testo = go where
-  go (s :< f) = case f of
-    BetaF _ _ k -> s : go (k 0)
-    BinomialF _ _ k -> s : go (k 0)
-    ConditionF -> [s]
+  go (ann@(s, a, p) :< f) = case f of
+    BetaF _ _ k -> (s, a, p) : go (k (unsafeFromDyn a))
+    BinomialF _ _ k -> (s, a, p) : go (k (unsafeFromDyn a))
+    ConditionF -> [ann]
 
 data Parameter = forall a. Show a => Parameter a
 

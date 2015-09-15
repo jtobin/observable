@@ -16,8 +16,11 @@ densityUniform a b x
   | x < a || x > b = 0
   | otherwise      = 1 / (b - a)
 
-densityBinomial :: (Num a, Integral b) => b -> a -> b -> a
-densityBinomial n p x = p ^ x * (1 - p) ^ (n - x)
+densityBinomial :: (Ord a, Num a, Integral b) => b -> a -> b -> a
+densityBinomial n p x
+  | x < 0 || x > n = 0
+  | p < 0 || p > 1 = 0
+  | otherwise = p ^ x * (1 - p) ^ (n - x)
 
 densityNormal :: Floating a => a -> a -> a -> a
 densityNormal m s x = recip s * exp (negate (x - m) ^ 2 / (2 * s ^ 2))
@@ -28,8 +31,10 @@ densityStandard = densityNormal 0 1
 densityGamma :: Floating a => a -> a -> a -> a
 densityGamma a b x = x ** (a - 1) * exp (negate x / b)
 
-densityBeta :: Floating a => a -> a -> a -> a
-densityBeta a b x = x ** (a - 1) * (1 - x) ** (b - 1)
+densityBeta :: (Ord a, Floating a) => a -> a -> a -> a
+densityBeta a b x
+  | x <= 0 || x >= 1 = 0
+  | otherwise = x ** (a - 1) * (1 - x) ** (b - 1)
 
 densityDirichlet :: Floating a => [a] -> [a] -> a
 densityDirichlet as ts = product $ zipWith (**) ts las where
