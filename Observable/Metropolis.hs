@@ -1,67 +1,54 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Observable.Metropolis where
 
 import Control.Comonad
 import Control.Comonad.Cofree
-import Control.Comonad.Trans.Cofree (runCofreeT, CofreeT)
-import qualified Control.Comonad.Trans.Cofree as Cofree
 import Control.Monad (replicateM)
-import Control.Monad.Free
-import Control.Monad.Primitive (PrimMonad, PrimState)
+import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Free (runFreeT, FreeT)
-import qualified Control.Monad.Trans.Free as Free
 import Control.Monad.Trans.State.Strict
 import Data.Dynamic
-import Data.Functor.Foldable
-import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust)
+import GHC.Prim (RealWorld)
 import Observable.Core hiding (Parameter)
 import Observable.Distribution
+import System.IO.Unsafe (unsafePerformIO)
 import System.Random.MWC.Probability (Prob)
 import qualified System.Random.MWC.Probability as Prob
-import System.Random.MWC (withSystemRandom, asGenIO, Gen, create)
 
-import Unsafe.Coerce
-import Debug.Trace
-import Data.Distributive
-
-import System.IO.Unsafe (unsafePerformIO)
-
-
-
-printTop :: Show a => Cofree f a -> IO ()
-printTop (a :< _) = print a
-
-test :: Model Int
-test = beta 1 8 >>= binomial 10
-
-prog :: Conditioned Int
-prog = condition 3 test
-
+-- | An execution of a program.
 type Execution a = Cofree ModelF (Node a, Dynamic, Double)
 
+-- | A transition operator between executions.
+type Transition m a = StateT (Chain a) (Prob m) [Parameter]
+
+-- | State of a Markov chain over executions.
 data Chain a = Chain {
     chainScore     :: Double
   , chainExecution :: Execution a
   }
 
-type Transition m a = StateT (Chain a) (Prob m) [Parameter]
+-- | Initialize a Markov chain over executions.
+initializeChain
+  :: Typeable a
+  => Conditioned a
+  -> Chain a
+initializeChain prog = Chain score initd where
+  initd = execute prog
+  score = scoreExecution initd
 
+-- | The Metropolis algorithm.
 metropolis
   :: (Typeable a, PrimMonad m)
   => Int -> Double -> Chain a -> Prob m [[Parameter]]
 metropolis n step = evalStateT (replicateM n (transition step))
 
+-- | A Metropolis transition.
 transition :: Typeable a => PrimMonad m => Double -> Transition m a
 transition step = do
-  currentState@(Chain currentScore current) <- get
+  Chain currentScore current <- get
   let proposal = perturbExecution step current
 
   let proposalScore     = scoreExecution proposal
@@ -81,50 +68,14 @@ transition step = do
   then put (Chain proposalScore proposal) >> return (collectPositions proposal)
   else return (collectPositions current)
 
-initializeChain
-  :: Typeable a
-  => Conditioned a
-  -> Chain a
-initializeChain prog = Chain score initd where
-  initd = initializeExecution prog
-  score = scoreExecution initd
-
--- -- | Initialize a Markov chain over conditional program executions.
--- initializeExecution
---   :: forall m a. (PrimMonad m, Typeable a, Show a)
---   => Conditioned a
---   -> Prob m (Execution a)
--- initializeExecution = go where
---   go :: Show a => Conditioned a -> Prob m (Execution a)
---   go term@(Unconditioned :< f) = case f of
---     BetaF a b k -> do
---       z <- Prob.beta a b
---       let dyn = toDyn z
---       rest <- fmap unwrap (go (k z))
---       return $ (extract term, dyn, scoreNode dyn f) :< rest
---
---     BinomialF n p k -> do
---       z <- Prob.binomial n p
---       let dyn = toDyn z
---       rest <- fmap unwrap (go (k z))
---       return $ (extract term, dyn, scoreNode dyn f) :< rest
---
---   go term = return $ goPure term
---
---   goPure t@(Conditioned a :< f) =
---     let dyn = toDyn a
---     in  (extract t, dyn, scoreNode dyn f) :< fmap goPure f
---
---   goPure t@(Closed :< f) = (extract t, toDyn (), 0) :< fmap goPure f
---
---   goPure _ = error "goPure: unexpected unconditioned node"
-
-initializeExecution
+-- | Execute a program.
+execute
   :: Typeable a
   => Conditioned a
   -> Cofree ModelF (Node a, Dynamic, Double)
-initializeExecution = extend initialize
+execute = extend initialize
 
+-- | Return execution information from the root node of a conditioned AST.
 initialize
   :: Typeable a
   => Conditioned a
@@ -138,22 +89,25 @@ initialize w = (ann, z, scoreNode z etc) where
     Conditioned c -> toDyn c
     Closed        -> toDyn ()
 
+-- | Perturb the execution of a program's root node and record the perturbed
+--   execution information.
 perturb
   :: Typeable a
   => Double
   -> Execution a
   -> (Node a, Dynamic, Double)
 perturb step w = (ann, z1, scoreNode z1 etc) where
-  ((ann, z0, p0), etc) = (extract w, unwrap w)
+  ((ann, z0, _), etc) = (extract w, unwrap w)
   u  = unsafeWithGen (Prob.sample (Prob.normal 0 step))
   d  = unsafeWithGen (Prob.sample (Prob.uniformR (-1, 1 :: Int)))
   z1 = case ann of
     Unconditioned -> case etc of
-      BetaF a b _     -> toDyn (unsafeFromDyn z0 + u)
-      BinomialF n p _ -> toDyn (unsafeFromDyn z0 + u)
+      BetaF {}        -> toDyn (unsafeFromDyn z0 + u)
+      BinomialF {}    -> toDyn (unsafeFromDyn z0 + d)
     Conditioned c -> toDyn c
     Closed        -> toDyn ()
 
+-- | Perturb a program's execution and return the perturbed execution.
 perturbExecution
   :: Typeable a
   => Double
@@ -161,11 +115,8 @@ perturbExecution
   -> Execution a
 perturbExecution step = extend (perturb step)
 
-unsafeWithGen = unsafePerformIO . withSystemRandom . asGenIO
-
-
--- | Calculate a probability mass/density for a given distribution and provided
---   parameter.
+-- | Calculate a log probability mass/density for a given distribution and
+--   observation.
 scoreNode :: Dynamic -> ModelF t -> Double
 scoreNode z term = fromJust $ case term of
   BetaF a b _     -> fmap (log . densityBeta a b) (fromDynamic z)
@@ -180,10 +131,11 @@ scoreExecution = go where
     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
     ConditionF      -> s
 
+-- | Calculate a probability of transitioning between two executions.
 transitionProbability
   :: Double       -- ^ Step size
-  -> Execution a  -- ^ Execution at current location
-  -> Execution a  -- ^ Execution at proposed location
+  -> Execution a  -- ^ Execution at current execution
+  -> Execution a  -- ^ Execution at proposed execution
   -> Double       -- ^ Transition probability
 transitionProbability s = go where
   go :: Execution a -> Execution a -> Double
@@ -198,6 +150,7 @@ transitionProbability s = go where
 
     ConditionF -> 0
 
+-- | Collect the execution trace of a program as a list.
 collectPositions :: Execution a -> [Parameter]
 collectPositions = go where
   go ((Unconditioned, a, _) :< f) = case f of
@@ -207,28 +160,24 @@ collectPositions = go where
 
   go _ = []
 
-unsafeFromDyn :: Typeable a => Dynamic -> a
-unsafeFromDyn = fromJust . fromDynamic
-
+-- | Safely coerce a dynamic value to a showable parameter.
 toParameter :: Dynamic -> Parameter
 toParameter z
   | dynTypeRep z == typeOf (0 :: Int)    = Parameter (unsafeFromDyn z :: Int)
   | dynTypeRep z == typeOf (0 :: Double) = Parameter (unsafeFromDyn z :: Double)
   | otherwise = error "toParameter: unsupported type"
 
-nodesStatus = go where
-  go ((s, a, _) :< f) = case f of
-    BetaF _ _ k -> s : go (k (unsafeFromDyn a))
-    BinomialF _ _ k -> s : go (k (unsafeFromDyn a))
-    ConditionF -> []
-
-testo = go where
-  go (ann@(s, a, p) :< f) = case f of
-    BetaF _ _ k -> (s, a, p) : go (k (unsafeFromDyn a))
-    BinomialF _ _ k -> (s, a, p) : go (k (unsafeFromDyn a))
-    ConditionF -> [ann]
-
+-- | A showable parameter.
 data Parameter = forall a. Show a => Parameter a
 
 instance Show Parameter where
   show (Parameter s) = show s
+
+-- | Unsafely coerce a dynamic value to some type.
+unsafeFromDyn :: Typeable a => Dynamic -> a
+unsafeFromDyn = fromJust . fromDynamic
+
+-- | Unsafely use the system's PRNG for randomness.
+unsafeWithGen :: (Prob.Gen RealWorld -> IO a) -> a
+unsafeWithGen = unsafePerformIO . Prob.withSystemRandom . Prob.asGenIO
+
