@@ -16,7 +16,7 @@ import Observable.Core hiding (Parameter)
 import Observable.Distribution
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random.MWC.Probability (Prob)
-import qualified System.Random.MWC.Probability as Prob
+import qualified System.Random.MWC.Probability as P
 
 -- | An execution of a program.
 type Execution a = Cofree ModelF (Node a, Dynamic, Double)
@@ -50,8 +50,7 @@ transition :: Typeable a => PrimMonad m => Double -> Transition m a
 transition step = do
   Chain currentScore current <- get
   let proposal = perturbExecution step current
-
-  let proposalScore     = scoreExecution proposal
+      proposalScore     = scoreExecution proposal
       currentToProposal = transitionProbability step current proposal
       proposalToCurrent = transitionProbability step proposal current
 
@@ -62,7 +61,7 @@ transition step = do
         | isNaN ratio = 0
         | otherwise   = ratio
 
-  zc <- lift Prob.uniform
+  zc <- lift P.uniform
 
   if   zc < acceptanceProbability
   then put (Chain proposalScore proposal) >> return (collectPositions proposal)
@@ -84,8 +83,21 @@ initialize w = (ann, z, scoreNode z etc) where
   (ann, etc) = (extract w, unwrap w)
   z = case ann of
     Unconditioned -> case etc of
-      BetaF a b _     -> toDyn (unsafeWithGen $ Prob.sample (Prob.beta a b))
-      BinomialF n p _ -> toDyn (unsafeWithGen $ Prob.sample (Prob.binomial n p))
+      BetaF a b _               -> toDyn (unsafeGen $ P.sample (P.beta a b))
+      BinomialF n p _           -> toDyn (unsafeGen $ P.sample (P.binomial n p))
+      StandardF _               -> toDyn (unsafeGen $ P.sample P.standard)
+      NormalF m s _             -> toDyn (unsafeGen $ P.sample (P.normal m s))
+      StudentF a b _            -> toDyn (unsafeGen $ P.sample (P.t a 1 b))
+      GammaF a b _              -> toDyn (unsafeGen $ P.sample (P.gamma a b))
+      InvGammaF a b _           -> toDyn (unsafeGen $ P.sample (P.inverseGamma a b))
+      UniformF a b _            -> toDyn (unsafeGen $ P.sample (P.uniformR (a, b)))
+      DirichletF vs _           -> toDyn (unsafeGen $ P.sample (P.dirichlet vs))
+      SymmetricDirichletF n a _ -> toDyn (unsafeGen $ P.sample (P.symmetricDirichlet n a))
+      CategoricalF vs _         -> toDyn (unsafeGen $ P.sample (P.categorical vs))
+      DiscreteUniformF n _      -> toDyn (unsafeGen $ P.sample (P.discreteUniform [1..n]))
+      IsoGaussF ms s _          -> toDyn (unsafeGen $ P.sample (P.isoGauss ms s))
+      PoissonF l _              -> toDyn (unsafeGen $ P.sample (P.poisson l))
+      ExponentialF l _          -> toDyn (unsafeGen $ P.sample (P.exponential l))
     Conditioned c -> toDyn c
     Closed        -> toDyn ()
 
@@ -98,12 +110,14 @@ perturb
   -> (Node a, Dynamic, Double)
 perturb step w = (ann, z1, scoreNode z1 etc) where
   ((ann, z0, _), etc) = (extract w, unwrap w)
-  u  = unsafeWithGen (Prob.sample (Prob.normal 0 step))
-  d  = unsafeWithGen (Prob.sample (Prob.uniformR (-1, 1 :: Int)))
+  u  = unsafeGen (P.sample (P.normal 0 step))
+  d  = unsafeGen (P.sample (P.uniformR (-1, 1 :: Int)))
   z1 = case ann of
     Unconditioned -> case etc of
       BetaF {}        -> toDyn (unsafeFromDyn z0 + u)
       BinomialF {}    -> toDyn (unsafeFromDyn z0 + d)
+
+    -- FIXME tedious
     Conditioned c -> toDyn c
     Closed        -> toDyn ()
 
@@ -121,6 +135,8 @@ scoreNode :: Dynamic -> ModelF t -> Double
 scoreNode z term = fromJust $ case term of
   BetaF a b _     -> fmap (log . densityBeta a b) (fromDynamic z)
   BinomialF n p _ -> fmap (log . densityBinomial n p) (fromDynamic z)
+
+  -- FIXME remainder (tedious)
   ConditionF      -> Just 0
 
 -- | Score the execution of a program.
@@ -129,6 +145,8 @@ scoreExecution = go where
   go ((_, a, s) :< f) = case f of
     BetaF _ _ k     -> s + go (k (unsafeFromDyn a))
     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
+
+    -- FIXME remainder (tedious)
     ConditionF      -> s
 
 -- | Calculate a probability of transitioning between two executions.
@@ -150,6 +168,9 @@ transitionProbability s = go where
 
     ConditionF -> 0
 
+    -- FIXME remainder (tedious)
+    _ -> 0
+
 -- | Collect the execution trace of a program as a list.
 collectPositions :: Execution a -> [Parameter]
 collectPositions = go where
@@ -158,6 +179,7 @@ collectPositions = go where
     BinomialF _ _ k -> toParameter a : go (k (unsafeFromDyn a))
     ConditionF      -> []
 
+  -- FIXME remainder (tedious)
   go _ = []
 
 -- | Safely coerce a dynamic value to a showable parameter.
@@ -178,6 +200,6 @@ unsafeFromDyn :: Typeable a => Dynamic -> a
 unsafeFromDyn = fromJust . fromDynamic
 
 -- | Unsafely use the system's PRNG for randomness.
-unsafeWithGen :: (Prob.Gen RealWorld -> IO a) -> a
-unsafeWithGen = unsafePerformIO . Prob.withSystemRandom . Prob.asGenIO
+unsafeGen :: (P.Gen RealWorld -> IO a) -> a
+unsafeGen = unsafePerformIO . P.withSystemRandom . P.asGenIO
 
