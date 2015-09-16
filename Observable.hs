@@ -21,9 +21,4 @@ import Observable.Core as OModule -- FIXME hide ModelF constructors
 --   , poisson
 --   , exponential
 --   )
-import Observable.Interpreter as OModule
-import Observable.Utils as OModule (
-    parameters
-  , observations
-  )
 

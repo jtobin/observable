@@ -5,9 +5,8 @@ module Observable.Metropolis where
 
 import Control.Comonad
 import Control.Comonad.Cofree
-import Control.Monad (replicateM)
-import Control.Monad.Primitive (PrimMonad)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad (forever)
+import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.Trans.State.Strict
 import Data.Dynamic
 import Data.Maybe (fromJust)
@@ -15,14 +14,17 @@ import GHC.Prim (RealWorld)
 import Observable.Core hiding (Parameter)
 import Observable.Distribution
 import System.IO.Unsafe (unsafePerformIO)
-import System.Random.MWC.Probability (Prob)
 import qualified System.Random.MWC.Probability as P
+import qualified System.Random.MWC as MWC
+
+import Pipes
+import qualified Pipes.Prelude as Pipes
 
 -- | An execution of a program.
 type Execution a = Cofree ModelF (Node a, Dynamic, Double)
 
 -- | A transition operator between executions.
-type Transition m a = StateT (Chain a) (Prob m) [Parameter]
+type Transition m a = StateT (Chain a) m [Parameter]
 
 -- | State of a Markov chain over executions.
 data Chain a = Chain {
@@ -39,15 +41,43 @@ initializeChain prog = Chain score initd where
   initd = execute prog
   score = scoreExecution initd
 
--- | The Metropolis algorithm.
+-- | Run the Metropolis algorithm and print positions to stdout.
 metropolis
-  :: (Typeable a, PrimMonad m)
-  => Int -> Double -> Chain a -> Prob m [[Parameter]]
-metropolis n step = evalStateT (replicateM n (transition step))
+  :: Typeable a
+  => Int
+  -> Double
+  -> P.Gen RealWorld
+  -> Conditioned a
+  -> IO ()
+metropolis n step gen model = runEffect $
+      generate step gen model
+  >-> Pipes.take n
+  >-> display
+
+display :: Show a => Consumer a IO r
+display = Pipes.mapM_ print
+
+-- | Perform a Metropolis transition and yield its result downstream.
+generate
+  :: (PrimMonad m, Typeable a)
+  => Double
+  -> P.Gen (PrimState m)
+  -> Conditioned a
+  -> Producer [Parameter] m ()
+generate step gen model = flip evalStateT initd . forever $ do
+    proposal <- transition step gen
+    lift (yield proposal)
+  where
+    initd = initializeChain model
 
 -- | A Metropolis transition.
-transition :: Typeable a => PrimMonad m => Double -> Transition m a
-transition step = do
+transition
+  :: (PrimMonad m, Typeable a)
+  => Double
+  -> P.Gen (PrimState m)
+  -> Transition (Producer [Parameter] m) a
+  -- Transition m a ~ StateT (Chain a) (Producer [Parameter] IO) [Parameter]
+transition step gen = do
   Chain currentScore current <- get
   let proposal = perturbExecution step current
       proposalScore     = scoreExecution proposal
@@ -61,7 +91,7 @@ transition step = do
         | isNaN ratio = 0
         | otherwise   = ratio
 
-  zc <- lift P.uniform
+  zc <- lift . lift $ MWC.uniform gen
 
   if   zc < acceptanceProbability
   then put (Chain proposalScore proposal) >> return (collectPositions proposal)
@@ -98,6 +128,7 @@ initialize w = (ann, z, scoreNode z etc) where
       IsoGaussF ms s _          -> toDyn (unsafeGen $ P.sample (P.isoGauss ms s))
       PoissonF l _              -> toDyn (unsafeGen $ P.sample (P.poisson l))
       ExponentialF l _          -> toDyn (unsafeGen $ P.sample (P.exponential l))
+      ConditionF                -> error "impossible"
     Conditioned c -> toDyn c
     Closed        -> toDyn ()
 

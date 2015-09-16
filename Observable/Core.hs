@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
@@ -29,14 +30,12 @@ module Observable.Core (
   , exponential
   ) where
 
-import Control.Comonad (extract, (=>>))
+import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree(..))
 import Control.Monad.Free (Free(..), liftF)
 import Data.Functor.Foldable (cata, Fix(..))
 import Data.Void (Void, absurd)
 import Data.Sampling.Types
-
-import Data.Distributive
 
 -- | @Observable@ terms.
 data ModelF k =
@@ -58,8 +57,6 @@ data ModelF k =
   | ExponentialF Double (Double -> k)
   | ConditionF
   deriving Functor
-
-instance Distributive ModelF
 
 -- | An @Observable@ program.
 type Model = Free ModelF
