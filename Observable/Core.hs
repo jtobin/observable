@@ -107,18 +107,18 @@ exponential :: Double -> Model Double
 exponential l = liftF (ExponentialF l id)
 
 -- | Status of a node.
-data Node a = Unconditioned | Conditioned a | Closed deriving Show
+data Node a = Unconditioned | Conditioned [a] | Closed deriving Show
 
 -- | A Conditioned model is annotated with conditioned/unconditioned status.
 type Conditioned a = Cofree ModelF (Node a)
 
-condition :: a -> Model a -> Conditioned a
-condition x model = annotate sized where
+condition :: [a] -> Model a -> Conditioned a
+condition xs model = annotate sized where
   fixed  = affix (model >> liftF ConditionF)
   sized  = sizes fixed
   annotate (a :< f) = case a of
     0 -> Closed :< fmap annotate f
-    1 -> Conditioned x :< fmap annotate f
+    1 -> Conditioned xs :< fmap annotate f
     _ -> Unconditioned :< fmap annotate f
 
 -- | Bottom-up annotation.

@@ -55,7 +55,7 @@ metropolis n step gen model = runEffect $
   >-> display
 
 display :: Show a => Consumer a IO r
-display = Pipes.mapM_ print
+display = Pipes.mapM_ (putStrLn . init . drop 1 . show)
 
 -- | Perform a Metropolis transition and yield its result downstream.
 generate
@@ -76,10 +76,9 @@ transition
   => Double
   -> P.Gen (PrimState m)
   -> Transition (Producer [Parameter] m) a
-  -- Transition m a ~ StateT (Chain a) (Producer [Parameter] IO) [Parameter]
 transition step gen = do
   Chain currentScore current <- get
-  let proposal = perturbExecution step current
+  let proposal          = perturbExecution step current
       proposalScore     = scoreExecution proposal
       currentToProposal = transitionProbability step current proposal
       proposalToCurrent = transitionProbability step proposal current
@@ -94,8 +93,10 @@ transition step gen = do
   zc <- lift . lift $ MWC.uniform gen
 
   if   zc < acceptanceProbability
-  then put (Chain proposalScore proposal) >> return (collectPositions proposal)
-  else return (collectPositions current)
+  then do
+    put (Chain proposalScore proposal)
+    return $! collectPositions proposal
+  else return $! collectPositions current
 
 -- | Execute a program.
 execute
@@ -109,28 +110,59 @@ initialize
   :: Typeable a
   => Conditioned a
   -> (Node a, Dynamic, Double)
-initialize w = (ann, z, scoreNode z etc) where
+initialize w = (ann, z1, p1) where
   (ann, etc) = (extract w, unwrap w)
-  z = case ann of
+  (z1, p1) = case ann of
     Unconditioned -> case etc of
-      BetaF a b _               -> toDyn (unsafeGen $ P.sample (P.beta a b))
-      BinomialF n p _           -> toDyn (unsafeGen $ P.sample (P.binomial n p))
-      StandardF _               -> toDyn (unsafeGen $ P.sample P.standard)
-      NormalF m s _             -> toDyn (unsafeGen $ P.sample (P.normal m s))
-      StudentF a b _            -> toDyn (unsafeGen $ P.sample (P.t a 1 b))
-      GammaF a b _              -> toDyn (unsafeGen $ P.sample (P.gamma a b))
-      InvGammaF a b _           -> toDyn (unsafeGen $ P.sample (P.inverseGamma a b))
-      UniformF a b _            -> toDyn (unsafeGen $ P.sample (P.uniformR (a, b)))
-      DirichletF vs _           -> toDyn (unsafeGen $ P.sample (P.dirichlet vs))
-      SymmetricDirichletF n a _ -> toDyn (unsafeGen $ P.sample (P.symmetricDirichlet n a))
-      CategoricalF vs _         -> toDyn (unsafeGen $ P.sample (P.categorical vs))
-      DiscreteUniformF n _      -> toDyn (unsafeGen $ P.sample (P.discreteUniform [1..n]))
-      IsoGaussF ms s _          -> toDyn (unsafeGen $ P.sample (P.isoGauss ms s))
-      PoissonF l _              -> toDyn (unsafeGen $ P.sample (P.poisson l))
-      ExponentialF l _          -> toDyn (unsafeGen $ P.sample (P.exponential l))
+      BetaF a b _     ->
+        let z = toDyn (unsafeGen $ P.sample (P.beta a b))
+        in  (z, scoreNode z etc)
+      BinomialF n p _ ->
+        let z = toDyn (unsafeGen $ P.sample (P.binomial n p))
+        in  (z, scoreNode z etc)
+      StandardF _     ->
+        let z = toDyn (unsafeGen $ P.sample P.standard)
+        in  (z, scoreNode z etc)
+      NormalF m s _   ->
+        let z = toDyn (unsafeGen $ P.sample (P.normal m s))
+        in  (z, scoreNode z etc)
+      StudentF a b _  ->
+        let z = toDyn (unsafeGen $ P.sample (P.t a 1 b))
+        in  (z, scoreNode z etc)
+      GammaF a b _    ->
+        let z = toDyn (unsafeGen $ P.sample (P.gamma a b))
+        in  (z, scoreNode z etc)
+      InvGammaF a b _ ->
+        let z = toDyn (unsafeGen $ P.sample (P.inverseGamma a b))
+        in  (z, scoreNode z etc)
+      UniformF a b _  ->
+        let z = toDyn (unsafeGen $ P.sample (P.uniformR (a, b)))
+        in  (z, scoreNode z etc)
+      DirichletF vs _ ->
+        let z = toDyn (unsafeGen $ P.sample (P.dirichlet vs))
+        in  (z, scoreNode z etc)
+      SymmetricDirichletF n a _ ->
+        let z = toDyn (unsafeGen $ P.sample (P.symmetricDirichlet n a))
+        in  (z, scoreNode z etc)
+      CategoricalF vs _         ->
+        let z = toDyn (unsafeGen $ P.sample (P.categorical vs))
+        in  (z, scoreNode z etc)
+      DiscreteUniformF n _      ->
+        let z = toDyn (unsafeGen $ P.sample (P.discreteUniform [1..n]))
+        in  (z, scoreNode z etc)
+      IsoGaussF ms s _          ->
+        let z = toDyn (unsafeGen $ P.sample (P.isoGauss ms s))
+        in  (z, scoreNode z etc)
+      PoissonF l _              ->
+        let z = toDyn (unsafeGen $ P.sample (P.poisson l))
+        in  (z, scoreNode z etc)
+      ExponentialF l _          ->
+        let z = toDyn (unsafeGen $ P.sample (P.exponential l))
+        in  (z, scoreNode z etc)
       ConditionF                -> error "impossible"
-    Conditioned c -> toDyn c
-    Closed        -> toDyn ()
+    Conditioned cs ->
+      (toDyn cs, sum $ map (\z -> scoreNode (toDyn z) etc) cs)
+    Closed        -> (toDyn (), 0)
 
 -- | Perturb the execution of a program's root node and record the perturbed
 --   execution information.
@@ -139,18 +171,17 @@ perturb
   => Double
   -> Execution a
   -> (Node a, Dynamic, Double)
-perturb step w = (ann, z1, scoreNode z1 etc) where
+perturb step w = (ann, z1, p1) where
   ((ann, z0, _), etc) = (extract w, unwrap w)
   u  = unsafeGen (P.sample (P.normal 0 step))
   d  = unsafeGen (P.sample (P.uniformR (-1, 1 :: Int)))
-  z1 = case ann of
+  (z1, p1) = case ann of
     Unconditioned -> case etc of
-      BetaF {}        -> toDyn (unsafeFromDyn z0 + u)
-      BinomialF {}    -> toDyn (unsafeFromDyn z0 + d)
+      BetaF {} -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+      BinomialF {} -> let z = toDyn (unsafeFromDyn z0 + d) in (z, scoreNode z etc)
 
-    -- FIXME tedious
-    Conditioned c -> toDyn c
-    Closed        -> toDyn ()
+    Conditioned cs -> (toDyn cs, sum $ map (\z -> scoreNode (toDyn z) etc) cs)
+    Closed         -> (toDyn (), 0)
 
 -- | Perturb a program's execution and return the perturbed execution.
 perturbExecution
