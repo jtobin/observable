@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Observable.Metropolis where
 
@@ -17,8 +19,12 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified System.Random.MWC.Probability as P
 import qualified System.Random.MWC as MWC
 
-import Pipes
+import Pipes (Producer, Consumer, (>->), runEffect, yield, lift)
 import qualified Pipes.Prelude as Pipes
+
+import Prelude hiding (Foldable)
+import Data.Functor.Foldable
+import Control.Monad.Free
 
 -- | An execution of a program.
 type Execution a = Cofree ModelF (Node a, Dynamic, Double)
@@ -179,6 +185,7 @@ perturb step w = (ann, z1, p1) where
     Unconditioned -> case etc of
       BetaF {} -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
       BinomialF {} -> let z = toDyn (unsafeFromDyn z0 + d) in (z, scoreNode z etc)
+      NormalF   {} -> let z = toDyn (unsafeFromDyn z0 + d) in (z, scoreNode z etc)
 
     Conditioned cs -> (toDyn cs, sum $ map (\z -> scoreNode (toDyn z) etc) cs)
     Closed         -> (toDyn (), 0)
@@ -197,6 +204,7 @@ scoreNode :: Dynamic -> ModelF t -> Double
 scoreNode z term = fromJust $ case term of
   BetaF a b _     -> fmap (log . densityBeta a b) (fromDynamic z)
   BinomialF n p _ -> fmap (log . densityBinomial n p) (fromDynamic z)
+  NormalF   m s _ -> fmap (log . densityNormal m s) (fromDynamic z)
 
   -- FIXME remainder (tedious)
   ConditionF      -> Just 0
@@ -207,6 +215,7 @@ scoreExecution = go where
   go ((_, a, s) :< f) = case f of
     BetaF _ _ k     -> s + go (k (unsafeFromDyn a))
     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
+    NormalF   _ _ k -> s + go (k (unsafeFromDyn a))
 
     -- FIXME remainder (tedious)
     ConditionF      -> s

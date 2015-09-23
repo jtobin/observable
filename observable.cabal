@@ -35,4 +35,5 @@ library
     , recursion-schemes
     , transformers
     , wl-pprint-text
+    , void
 

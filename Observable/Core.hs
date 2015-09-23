@@ -112,8 +112,8 @@ data Node a = Unconditioned | Conditioned [a] | Closed deriving Show
 -- | A Conditioned model is annotated with conditioned/unconditioned status.
 type Conditioned a = Cofree ModelF (Node a)
 
-condition :: [a] -> Model a -> Conditioned a
-condition xs model = annotate sized where
+condition :: Model a -> [a] -> Conditioned a
+condition model xs = annotate sized where
   fixed  = affix (model >> liftF ConditionF)
   sized  = sizes fixed
   annotate (a :< f) = case a of
