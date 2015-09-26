@@ -183,9 +183,12 @@ perturb step w = (ann, z1, p1) where
   d  = unsafeGen (P.sample (P.uniformR (-1, 1 :: Int)))
   (z1, p1) = case ann of
     Unconditioned -> case etc of
-      BetaF {} -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+      BetaF {}     -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+      NormalF   {} -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+      UniformF {}  -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+      GammaF   {}  -> let z = toDyn (unsafeFromDyn z0 + u) in (z, scoreNode z etc)
+
       BinomialF {} -> let z = toDyn (unsafeFromDyn z0 + d) in (z, scoreNode z etc)
-      NormalF   {} -> let z = toDyn (unsafeFromDyn z0 + d) in (z, scoreNode z etc)
 
     Conditioned cs -> (toDyn cs, sum $ map (\z -> scoreNode (toDyn z) etc) cs)
     Closed         -> (toDyn (), 0)
@@ -205,6 +208,8 @@ scoreNode z term = fromJust $ case term of
   BetaF a b _     -> fmap (log . densityBeta a b) (fromDynamic z)
   BinomialF n p _ -> fmap (log . densityBinomial n p) (fromDynamic z)
   NormalF   m s _ -> fmap (log . densityNormal m s) (fromDynamic z)
+  GammaF a b _    -> fmap (log . densityGamma a b) (fromDynamic z)
+  UniformF a b _  -> fmap (log . densityUniform a b) (fromDynamic z)
 
   -- FIXME remainder (tedious)
   ConditionF      -> Just 0
@@ -216,6 +221,8 @@ scoreExecution = go where
     BetaF _ _ k     -> s + go (k (unsafeFromDyn a))
     BinomialF _ _ k -> s + go (k (unsafeFromDyn a))
     NormalF   _ _ k -> s + go (k (unsafeFromDyn a))
+    GammaF    _ _ k -> s + go (k (unsafeFromDyn a))
+    UniformF  _ _ k -> s + go (k (unsafeFromDyn a))
 
     -- FIXME remainder (tedious)
     ConditionF      -> s
@@ -230,6 +237,18 @@ transitionProbability s = go where
   go :: Execution a -> Execution a -> Double
   go ((_, z0, _) :< f) ((_, z1, _) :< _) = case f of
     BetaF _ _ k     ->
+      let (u0, u1) = (unsafeFromDyn z0 :: Double, unsafeFromDyn z1 :: Double)
+      in  log (densityNormal u0 u1 s) + go (k u0) (k u1)
+
+    NormalF _ _ k     ->
+      let (u0, u1) = (unsafeFromDyn z0 :: Double, unsafeFromDyn z1 :: Double)
+      in  log (densityNormal u0 u1 s) + go (k u0) (k u1)
+
+    GammaF _ _ k     ->
+      let (u0, u1) = (unsafeFromDyn z0 :: Double, unsafeFromDyn z1 :: Double)
+      in  log (densityNormal u0 u1 s) + go (k u0) (k u1)
+
+    UniformF _ _ k     ->
       let (u0, u1) = (unsafeFromDyn z0 :: Double, unsafeFromDyn z1 :: Double)
       in  log (densityNormal u0 u1 s) + go (k u0) (k u1)
 
@@ -248,6 +267,9 @@ collectPositions = go where
   go ((Unconditioned, a, _) :< f) = case f of
     BetaF _ _ k     -> toParameter a : go (k (unsafeFromDyn a))
     BinomialF _ _ k -> toParameter a : go (k (unsafeFromDyn a))
+    GammaF _ _ k    -> toParameter a : go (k (unsafeFromDyn a))
+    UniformF  _ _ k -> toParameter a : go (k (unsafeFromDyn a))
+    NormalF   _ _ k -> toParameter a : go (k (unsafeFromDyn a))
     ConditionF      -> []
 
   -- FIXME remainder (tedious)
