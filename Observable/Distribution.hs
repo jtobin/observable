@@ -22,14 +22,18 @@ densityBinomial n p x
   | p < 0 || p > 1 = 0
   | otherwise = p ^ x * (1 - p) ^ (n - x)
 
-densityNormal :: Floating a => a -> a -> a -> a
-densityNormal m s x = recip s * exp (negate (x - m) ^ 2 / (2 * s ^ 2))
+densityNormal :: (Ord a, Floating a) => a -> a -> a -> a
+densityNormal m s x
+  | s < 0     = 0
+  | otherwise = recip s * exp (negate (x - m) ^ 2 / (2 * s ^ 2))
 
-densityStandard :: Floating a => a -> a
+densityStandard :: (Ord a, Floating a) => a -> a
 densityStandard = densityNormal 0 1
 
-densityGamma :: Floating a => a -> a -> a -> a
-densityGamma a b x = x ** (a - 1) * exp (negate x / b)
+densityGamma :: (Ord a, Floating a) => a -> a -> a -> a
+densityGamma a b x
+  | a < 0 || b < 0 = 0
+  | otherwise      = x ** (a - 1) * exp (negate x / b)
 
 densityBeta :: (Ord a, Floating a) => a -> a -> a -> a
 densityBeta a b x
@@ -59,7 +63,7 @@ densityCategorical ts x = case safeAt x Nothing ts of
       | j == 0    = Just i
       | otherwise = safeAt (pred j) acc is
 
-densityIsoGauss :: Floating a => [a] -> a -> [a] -> a
+densityIsoGauss :: (Ord a, Floating a) => [a] -> a -> [a] -> a
 densityIsoGauss [] _ _  = error "unIsoGauss: empty mean vector"
 densityIsoGauss _ _ []  = error "unIsoGauss: empty value vector"
 densityIsoGauss ms v xs = exp (sum lprobs) where
