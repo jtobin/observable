@@ -1,154 +1,105 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE ExistentialQuantification #-}
 
-module Observable.Core (
-    module Data.Sampling.Types
+module Observable.Core where
 
-  , ModelF(..) -- FIXME don't want to export ConditionF
-  , Model
+import Data.Dynamic
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Control.Monad.Free
 
-  , Conditioned
-  , Node(..)
-  , condition
-
-  -- * smart constructors
-  , beta
-  , binomial
-  , standard
-  , normal
-  , student
-  , gamma
-  , invGamma
-  , uniform
-  , dirichlet
-  , symmetricDirichlet
-  , categorical
-  , discreteUniform
-  , isoGauss
-  , poisson
-  , exponential
-  ) where
-
-import Control.Comonad (extract)
-import Control.Comonad.Cofree (Cofree(..))
-import Control.Monad.Free (Free(..), liftF)
-import Data.Functor.Foldable (cata, Fix(..))
-import Data.Void (Void, absurd)
-import Data.Sampling.Types
-
--- | @Observable@ terms.
 data ModelF k =
     -- * distributional terms
-    BetaF Double Double (Double -> k)
-  | BinomialF Int Double (Int -> k)
-  | StandardF (Double -> k)
-  | NormalF Double Double (Double -> k)
-  | StudentF Double Double (Double -> k)
-  | GammaF Double Double (Double -> k)
-  | InvGammaF Double Double (Double -> k)
-  | UniformF Double Double (Double -> k)
-  | DirichletF [Double] ([Double] -> k)
-  | SymmetricDirichletF Int Double ([Double] -> k)
-  | CategoricalF [Double] (Int -> k)
-  | DiscreteUniformF Int (Int -> k)
-  | IsoGaussF [Double] Double ([Double] -> k)
-  | PoissonF Double (Int -> k)
-  | ExponentialF Double (Double -> k)
-  | ConditionF
+    BetaF Double Double String (Double -> k)
+  | BinomialF Int Double String (Int -> k)
+  | StandardF String (Double -> k)
+  | NormalF Double Double String (Double -> k)
+  | StudentF Double Double String (Double -> k)
+  | GammaF Double Double String (Double -> k)
+  | InvGammaF Double Double String (Double -> k)
+  | UniformF Double Double String (Double -> k)
+  | DirichletF [Double] String ([Double] -> k)
+  | SymmetricDirichletF Int Double String ([Double] -> k)
+  | CategoricalF [Double] String (Int -> k)
+  | DiscreteUniformF Int String (Int -> k)
+  | IsoGaussF [Double] Double String ([Double] -> k)
+  | PoissonF Double String (Int -> k)
+  | ExponentialF Double String (Double -> k)
   deriving Functor
 
--- | An @Observable@ program.
 type Model = Free ModelF
 
-beta :: Double -> Double -> Model Double
-beta a b = liftF (BetaF a b id)
+beta :: Double -> Double -> String -> Model Double
+beta a b tag = liftF (BetaF a b tag id)
 
-binomial :: Int -> Double -> Model Int
-binomial n p = liftF (BinomialF n p id)
+binomial :: Int -> Double -> String -> Model Int
+binomial n p tag = liftF (BinomialF n p tag id)
 
-standard :: Model Double
-standard = liftF (StandardF id)
+standard :: String -> Model Double
+standard tag = liftF (StandardF tag id)
 
-normal :: Double -> Double -> Model Double
-normal m s = liftF (NormalF m s id)
+normal :: Double -> Double -> String -> Model Double
+normal m s tag = liftF (NormalF m s tag id)
 
-student :: Double -> Double -> Model Double
-student m v = liftF (StudentF m v id)
+student :: Double -> Double -> String -> Model Double
+student m v tag = liftF (StudentF m v tag id)
 
-gamma :: Double -> Double -> Model Double
-gamma a b = liftF (GammaF a b id)
+gamma :: Double -> Double -> String -> Model Double
+gamma a b tag = liftF (GammaF a b tag id)
 
-invGamma :: Double -> Double -> Model Double
-invGamma a b = liftF (InvGammaF a b id)
+invGamma :: Double -> Double -> String -> Model Double
+invGamma a b tag = liftF (InvGammaF a b tag id)
 
-uniform :: Double -> Double -> Model Double
-uniform a b = liftF (UniformF a b id)
+uniform :: Double -> Double -> String -> Model Double
+uniform a b tag = liftF (UniformF a b tag id)
 
-dirichlet :: [Double] -> Model [Double]
-dirichlet as = liftF (DirichletF as id)
+dirichlet :: [Double] -> String -> Model [Double]
+dirichlet as tag = liftF (DirichletF as tag id)
 
-symmetricDirichlet :: Int -> Double -> Model [Double]
-symmetricDirichlet n a = liftF (SymmetricDirichletF n a id)
+symmetricDirichlet :: Int -> Double -> String -> Model [Double]
+symmetricDirichlet n a tag = liftF (SymmetricDirichletF n a tag id)
 
-categorical :: [Double] -> Model Int
-categorical cs = liftF (CategoricalF cs id)
+categorical :: [Double] -> String -> Model Int
+categorical cs tag = liftF (CategoricalF cs tag id)
 
-discreteUniform :: Int -> Model Int
-discreteUniform n = liftF (DiscreteUniformF n id)
+discreteUniform :: Int -> String -> Model Int
+discreteUniform n tag = liftF (DiscreteUniformF n tag id)
 
-isoGauss :: [Double] -> Double -> Model [Double]
-isoGauss ms v = liftF (IsoGaussF ms v id)
+isoGauss :: [Double] -> Double -> String -> Model [Double]
+isoGauss ms v tag = liftF (IsoGaussF ms v tag id)
 
-poisson :: Double -> Model Int
-poisson l = liftF (PoissonF l id)
+poisson :: Double -> String -> Model Int
+poisson l tag = liftF (PoissonF l tag id)
 
-exponential :: Double -> Model Double
-exponential l = liftF (ExponentialF l id)
+exponential :: Double -> String -> Model Double
+exponential l tag = liftF (ExponentialF l tag id)
 
--- | Status of a node.
-data Node a = Unconditioned | Conditioned [a] | Closed deriving Show
+data Target = Target {
+    lTarget  :: Map String Dynamic -> Double
+  , glTarget :: Maybe (Map String Dynamic -> Map String Dynamic)
+  }
 
--- | A Conditioned model is annotated with conditioned/unconditioned status.
-type Conditioned a = Cofree ModelF (Node a)
+createTargetWithGradient
+  :: (Map String Dynamic -> Double)
+  -> (Map String Dynamic -> Map String Dynamic)
+  -> Target
+createTargetWithGradient f g = Target f (Just g)
 
-condition :: Model a -> [a] -> Conditioned a
-condition model xs = annotate sized where
-  fixed  = affix (model >> liftF ConditionF)
-  sized  = sizes fixed
-  annotate (a :< f) = case a of
-    0 -> Closed :< fmap annotate f
-    1 -> Conditioned xs :< fmap annotate f
-    _ -> Unconditioned :< fmap annotate f
+createTargetWithoutGradient :: (Map String Dynamic -> Double) -> Target
+createTargetWithoutGradient f = Target f Nothing
 
--- | Bottom-up annotation.
-synth :: Functor f => (f a -> a) -> Fix f -> Cofree f a
-synth f = cata alg where
-  alg g = f (fmap extract g) :< g
+handleGradient :: Maybe t -> t
+handleGradient Nothing  = error "handleGradient: target has no gradient"
+handleGradient (Just g) = g
 
--- | Convert a Free f to a Fix f.
-affix :: Functor f => Free f Void -> Fix f
-affix = toFix where
-  toFix (Free f) = Fix (fmap toFix f)
-  toFix (Pure r) = absurd r
+observations :: Ord k => [(k, a)] -> Map k a
+observations = Map.fromList
 
--- | Annotate a fixed model with heights.
-sizes :: Fix ModelF -> Cofree ModelF Int
-sizes = synth alg where
-  alg (BetaF _ _ k)               = succ (k 0)
-  alg (BinomialF _ _ k)           = succ (k 0)
-  alg (StandardF k)               = succ (k 0)
-  alg (NormalF _ _ k)             = succ (k 0)
-  alg (StudentF _ _ k)            = succ (k 0)
-  alg (GammaF _ _ k)              = succ (k 0)
-  alg (InvGammaF _ _ k)           = succ (k 0)
-  alg (UniformF _ _ k)            = succ (k 0)
-  alg (DirichletF _ k)            = succ (k [])
-  alg (SymmetricDirichletF _ _ k) = succ (k [])
-  alg (CategoricalF _ k)          = succ (k 0)
-  alg (DiscreteUniformF _ k)      = succ (k 0)
-  alg (IsoGaussF _ _ k)           = succ (k [])
-  alg (PoissonF _ k)              = succ (k 0)
-  alg (ExponentialF _ k)          = succ (k 0)
-  alg ConditionF                  = 0
+parameters :: Ord k => [(k, a)] -> Map k a
+parameters = Map.fromList
+
+discrete :: Int -> Dynamic
+discrete = toDyn
+
+continuous :: Double -> Dynamic
+continuous = toDyn
 

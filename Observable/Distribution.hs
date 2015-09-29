@@ -1,6 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Observable.Distribution where
 
@@ -76,4 +74,5 @@ densityPoisson l x = l ^ x * fromIntegral (product [1..x])
 
 densityExponential :: Floating a => a -> a -> a
 densityExponential l x = x ** negate l
+
 
